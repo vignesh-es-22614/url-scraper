@@ -357,7 +357,7 @@ function showProgress(jobId, total) {
   let streamClosed = false;
   let reconnectAttempts = 0;
   let reconnectTimer = null;
-  let es = null;
+  let lastEventId = 0;
   _totalForEta = total;
   const itemMap = {};
   // track per-url start times
@@ -368,10 +368,6 @@ function showProgress(jobId, total) {
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
-    }
-    if (es) {
-      es.close();
-      es = null;
     }
   }
 
@@ -461,6 +457,8 @@ function showProgress(jobId, total) {
     }
   }
 
+  let lastEventId = 0;
+
   function connectStream() {
     if (streamClosed) return;
 
@@ -469,21 +467,57 @@ function showProgress(jobId, total) {
       label.textContent = 'Reconnected. Continuing...';
     }
 
-    es = new EventSource('/stream/' + jobId);
-    es.onmessage = e => {
-      reconnectAttempts = 0;
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-      handleMessage(msg);
-    };
+    fetch('/stream/' + jobId, {
+      headers: lastEventId > 0 ? { 'Last-Event-ID': String(lastEventId) } : {}
+    })
+      .then(resp => {
+        if (!resp.ok) throw new Error('Stream HTTP ' + resp.status);
+        return resp.body.getReader();
+      })
+      .then(reader => {
+        reconnectAttempts = 0;
+        let buffer = '';
 
-    es.onerror = () => {
+        const processChunk = () => {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              reconnectIfNeeded();
+              return;
+            }
+
+            buffer += new TextDecoder().decode(value);
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              if (line.startsWith('id: ')) {
+                lastEventId = parseInt(line.slice(4));
+              } else if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                try {
+                  const msg = JSON.parse(data);
+                  handleMessage(msg);
+                } catch (e) {
+                  // ignore parse errors
+                }
+              }
+            }
+
+            processChunk();
+          }).catch(err => {
+            reconnectIfNeeded();
+          });
+        };
+
+        processChunk();
+      })
+      .catch(err => {
+        reconnectIfNeeded();
+      });
+
+    function reconnectIfNeeded() {
       if (streamClosed) return;
-      if (es) {
-        es.close();
-        es = null;
-      }
-
       reconnectAttempts++;
       if (reconnectAttempts > 15) {
         streamClosed = true;
@@ -499,7 +533,7 @@ function showProgress(jobId, total) {
       label.textContent = 'Connection lost. Reconnecting in ' + waitSeconds + 's...';
       showError('Temporary network issue. Trying to reconnect automatically...');
       reconnectTimer = setTimeout(connectStream, waitSeconds * 1000);
-    };
+    }
   }
 
   activeStreamCloser = closeStream;
