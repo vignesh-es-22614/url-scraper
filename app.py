@@ -12,8 +12,16 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {".xlsx", ".xls", ".csv"}
+STREAM_HEARTBEAT_SECONDS = 10
 jobs: dict[str, dict] = {}
 _output_files: list[str] = []
+
+
+def _safe_int(raw, default=0):
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
 
 
 def _cleanup():
@@ -88,6 +96,7 @@ def start_scrape():
         "results": [],
         "events": queue.Queue(),
         "replay": [],
+        "next_event_id": 1,
         "output_path": None,
     }
 
@@ -96,9 +105,12 @@ def start_scrape():
 
 
 def _emit(job: dict, payload: dict):
+    event_id = job["next_event_id"]
+    job["next_event_id"] += 1
     msg = json.dumps(payload)
-    job["events"].put(msg)
-    job["replay"].append(msg)
+    event = (event_id, msg)
+    job["events"].put(event)
+    job["replay"].append(event)
 
 
 def _run_job(job_id: str, urls: list[str], settings: dict):
@@ -147,16 +159,30 @@ def stream(job_id: str):
     if job_id not in jobs:
         return jsonify({"error": "Unknown job"}), 404
 
+    last_event_id = _safe_int(request.headers.get("Last-Event-ID"), 0)
+
+    def _sse_event(event_id: int, msg: str) -> str:
+        return f"id: {event_id}\ndata: {msg}\n\n"
+
     def generate():
         job = jobs[job_id]
-        for msg in list(job["replay"]):
-            yield f"data: {msg}\n\n"
+        seen_event_id = last_event_id
+
+        for event_id, msg in list(job["replay"]):
+            if event_id <= seen_event_id:
+                continue
+            seen_event_id = event_id
+            yield _sse_event(event_id, msg)
             if json.loads(msg).get("type") in ("complete", "error"):
                 return
+
         while True:
             try:
-                msg = job["events"].get(timeout=30)
-                yield f"data: {msg}\n\n"
+                event_id, msg = job["events"].get(timeout=STREAM_HEARTBEAT_SECONDS)
+                if event_id <= seen_event_id:
+                    continue
+                seen_event_id = event_id
+                yield _sse_event(event_id, msg)
                 if json.loads(msg).get("type") in ("complete", "error"):
                     break
             except queue.Empty:
@@ -167,7 +193,11 @@ def stream(job_id: str):
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 

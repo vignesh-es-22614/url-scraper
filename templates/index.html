@@ -262,6 +262,7 @@ function stopTimer() { clearInterval(timerInterval); }
 // ── Start ──────────────────────────────────────────────────────────────
 const startBtn = document.getElementById('start-btn');
 const resetBtn = document.getElementById('reset-btn');
+let activeStreamCloser = null;
 startBtn.addEventListener('click', doScrape);
 
 function showError(msg) {
@@ -274,6 +275,10 @@ function hideError() {
 
 async function doScrape() {
   hideError();
+  if (activeStreamCloser) {
+    activeStreamCloser();
+    activeStreamCloser = null;
+  }
   const timeoutVal = parseInt(document.getElementById('s-timeout').value);
   const delayVal   = parseFloat(document.getElementById('s-delay').value);
   const maxText    = parseInt(document.getElementById('s-maxtext').value);
@@ -349,34 +354,50 @@ function showProgress(jobId, total) {
   const chipErr  = document.getElementById('chip-err');
   const chipW    = document.getElementById('chip-words');
   let doneCount = 0, errCount = 0, totalWords = 0;
+  let streamClosed = false;
+  let reconnectAttempts = 0;
+  let reconnectTimer = null;
+  let es = null;
   _totalForEta = total;
   const itemMap = {};
   // track per-url start times
   const urlStart = {};
 
-  const es = new EventSource('/stream/' + jobId);
-  es.onmessage = e => {
-    let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
+  function closeStream() {
+    streamClosed = true;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (es) {
+      es.close();
+      es = null;
+    }
+  }
+
+  function handleMessage(msg) {
     if (msg.type === 'heartbeat') return;
 
     if (msg.type === 'progress') {
       const pct = Math.round(msg.index / total * 100);
       if (msg.status === 'scraping') {
         urlStart[msg.index] = Date.now();
-        const li = document.createElement('li');
-        li.id = 'ui-' + msg.index;
-        li.className = 'status-scraping';
-        li.innerHTML = `
-          <span class="sicon">&#x23F3;</span>
-          <div class="uinfo">
-            <div class="utext">${esc(msg.url)}</div>
-            <div class="umeta">Fetching&hellip;</div>
-          </div>
-          <span class="ubadge b-run">Fetching</span>`;
-        document.getElementById('url-list').appendChild(li);
-        li.scrollIntoView({ block: 'nearest' });
-        itemMap[msg.index] = li;
+        let li = itemMap[msg.index];
+        if (!li) {
+          li = document.createElement('li');
+          li.id = 'ui-' + msg.index;
+          li.className = 'status-scraping';
+          li.innerHTML = `
+            <span class="sicon">&#x23F3;</span>
+            <div class="uinfo">
+              <div class="utext">${esc(msg.url)}</div>
+              <div class="umeta">Fetching&hellip;</div>
+            </div>
+            <span class="ubadge b-run">Fetching</span>`;
+          document.getElementById('url-list').appendChild(li);
+          li.scrollIntoView({ block: 'nearest' });
+          itemMap[msg.index] = li;
+        }
         label.textContent = `Scraping page ${msg.index} of ${total}\u2026`;
         barCtr.textContent = (msg.index - 1) + ' / ' + total;
         bar.style.width = Math.max(4, pct - 4) + '%';
@@ -384,10 +405,13 @@ function showProgress(jobId, total) {
         const li = itemMap[msg.index];
         if (!li) return;
         const elapsed = urlStart[msg.index] ? ((Date.now() - urlStart[msg.index]) / 1000).toFixed(1) + 's' : '';
+        const alreadyDone = li.classList.contains('status-done') || li.classList.contains('status-error');
         if (msg.status === 'done') {
-          doneCount++;
-          _doneForEta = doneCount;
-          totalWords += msg.words || 0;
+          if (!alreadyDone) {
+            doneCount++;
+            _doneForEta = doneCount;
+            totalWords += msg.words || 0;
+          }
           li.className = 'status-done';
           li.querySelector('.sicon').textContent    = '\u2705';
           li.querySelector('.umeta').textContent    = (msg.title ? `"${trunc(msg.title, 60)}"  \u2014  ` : '') + `~${msg.words} words  \u00B7  ${elapsed}`;
@@ -396,8 +420,10 @@ function showProgress(jobId, total) {
           chipW.style.display = '';
           chipW.textContent   = totalWords.toLocaleString() + ' words';
         } else {
-          errCount++;
-          _doneForEta = doneCount + errCount;
+          if (!alreadyDone) {
+            errCount++;
+            _doneForEta = doneCount + errCount;
+          }
           li.className = 'status-error';
           li.querySelector('.sicon').textContent    = '\u274C';
           li.querySelector('.umeta').textContent    = (msg.error || 'Failed') + '  \u00B7  ' + elapsed;
@@ -415,27 +441,69 @@ function showProgress(jobId, total) {
     }
 
     if (msg.type === 'complete') {
-      es.close(); stopTimer();
+      streamClosed = true;
+      closeStream();
+      stopTimer();
       bar.style.width = '100%';
       barCtr.textContent = total + ' / ' + total + '  (100%)';
       label.textContent = 'All done!';
       showDownload(jobId, total, doneCount, errCount, msg.total_words || totalWords);
     }
+
     if (msg.type === 'error') {
-      es.close(); stopTimer();
+      streamClosed = true;
+      closeStream();
+      stopTimer();
       label.textContent = 'Failed.';
       showError('Scraping error: ' + msg.message);
       startBtn.disabled = false;
       resetBtn.style.display = '';
     }
-  };
-  es.onerror = () => {
-    es.close(); stopTimer();
-    label.textContent = 'Connection lost.';
-    showError('Lost connection to server. Refresh the page and try again.');
-    startBtn.disabled = false;
-    resetBtn.style.display = '';
-  };
+  }
+
+  function connectStream() {
+    if (streamClosed) return;
+
+    if (reconnectAttempts > 0) {
+      hideError();
+      label.textContent = 'Reconnected. Continuing...';
+    }
+
+    es = new EventSource('/stream/' + jobId);
+    es.onmessage = e => {
+      reconnectAttempts = 0;
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      handleMessage(msg);
+    };
+
+    es.onerror = () => {
+      if (streamClosed) return;
+      if (es) {
+        es.close();
+        es = null;
+      }
+
+      reconnectAttempts++;
+      if (reconnectAttempts > 15) {
+        streamClosed = true;
+        stopTimer();
+        label.textContent = 'Connection lost.';
+        showError('Connection was unstable for too long. Please refresh once and continue.');
+        startBtn.disabled = false;
+        resetBtn.style.display = '';
+        return;
+      }
+
+      const waitSeconds = Math.min(12, 2 + reconnectAttempts);
+      label.textContent = 'Connection lost. Reconnecting in ' + waitSeconds + 's...';
+      showError('Temporary network issue. Trying to reconnect automatically...');
+      reconnectTimer = setTimeout(connectStream, waitSeconds * 1000);
+    };
+  }
+
+  activeStreamCloser = closeStream;
+  connectStream();
 }
 
 // ── Download ───────────────────────────────────────────────────────────
@@ -455,6 +523,10 @@ function showDownload(jobId, total, ok, err, words) {
 // ── Reset ──────────────────────────────────────────────────────────────
 resetBtn.addEventListener('click', () => {
   hideError();
+  if (activeStreamCloser) {
+    activeStreamCloser();
+    activeStreamCloser = null;
+  }
   selectedFile = null;
   fileInput.value = '';
   fileNameEl.textContent = '';
