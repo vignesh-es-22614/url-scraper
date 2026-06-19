@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: url-scraper
+    env: python
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --worker-class sync --timeout 120
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11

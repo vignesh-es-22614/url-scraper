@@ -1,0 +1,482 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>URL Scraper</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --blue:#1f497d;--blue-lt:#2e6ab1;--bg:#f0f4f8;--card:#fff;
+      --border:#d0daea;--text:#1a202c;--muted:#6b7280;
+      --green:#16a34a;--red:#dc2626;--yellow:#d97706;--r:10px;
+    }
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    header{background:var(--blue);color:#fff;padding:16px 30px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+    header h1{font-size:1.3rem;font-weight:700}
+    header p{font-size:.78rem;opacity:.72;margin-top:2px}
+    main{max-width:900px;margin:30px auto;padding:0 18px 60px;display:flex;flex-direction:column;gap:20px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:22px 26px}
+    .card h2{font-size:.95rem;font-weight:700;color:var(--blue);margin-bottom:14px;display:flex;align-items:center;gap:7px}
+    /* tabs */
+    .tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:18px}
+    .tab-btn{padding:8px 18px;border:none;background:none;font:inherit;font-size:.88rem;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s}
+    .tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+    /* drop zone */
+    .drop-zone{border:2px dashed var(--border);border-radius:var(--r);padding:36px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+    .drop-zone:hover,.drop-zone.drag-over{border-color:var(--blue-lt);background:#eef3fb}
+    .drop-zone p{margin-top:10px;color:var(--muted);font-size:.88rem}
+    .drop-zone strong{color:var(--blue-lt);text-decoration:underline}
+    #file-input{display:none}
+    #file-name{margin-top:10px;font-size:.83rem;color:var(--green);font-weight:600}
+    /* textarea */
+    textarea{width:100%;min-height:150px;padding:11px 13px;border:1px solid var(--border);border-radius:8px;font:.86rem/1.6 'Cascadia Code','Courier New',monospace;resize:vertical;background:#fafcff;transition:border-color .15s}
+    textarea:focus{outline:none;border-color:var(--blue-lt)}
+    .helper{font-size:.76rem;color:var(--muted);margin-top:5px}
+    /* settings grid */
+    .settings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:4px}
+    .setting-item label{display:block;font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:4px}
+    .setting-item input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:.86rem;background:#fafcff}
+    .setting-item input:focus{outline:none;border-color:var(--blue-lt)}
+    details>summary{cursor:pointer;font-size:.83rem;color:var(--blue-lt);font-weight:600;user-select:none;margin-bottom:10px}
+    details>summary:hover{text-decoration:underline}
+    /* buttons */
+    .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 24px;border:none;border-radius:8px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .15s,transform .1s}
+    .btn:active{transform:scale(.97)}
+    .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:var(--blue-lt)}
+    .btn-primary:disabled{background:#9db3cc;cursor:not-allowed;transform:none}
+    .btn-success{background:var(--green);color:#fff}.btn-success:hover{background:#15803d}
+    .btn-row{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
+    /* progress */
+    #progress-section{display:none}
+    .meta-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+    .chip{font-size:.76rem;padding:3px 10px;border-radius:999px;font-weight:600}
+    .chip-blue{background:#dbeafe;color:#1e40af}
+    .chip-green{background:#dcfce7;color:#166534}
+    .chip-red{background:#fee2e2;color:#991b1b}
+    .chip-amber{background:#fef3c7;color:#92400e}
+    #timer{font-size:.78rem;color:var(--muted);margin-left:auto}
+    .progress-wrap{background:#e2e8f0;border-radius:999px;height:18px;overflow:hidden;margin:0 0 5px;position:relative}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--blue-lt));border-radius:999px;width:0%;transition:width .4s ease}
+    .progress-label-inside{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);pointer-events:none;letter-spacing:.3px}
+    #progress-label{font-size:.8rem;color:var(--muted);margin-top:4px}
+    /* url rows */
+    #url-list{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:7px}
+    #url-list li{display:flex;align-items:flex-start;gap:9px;padding:9px 13px;border-radius:8px;font-size:.83rem;background:#f8fafc;border:1px solid #e4eaf2;transition:background .2s}
+    li.status-scraping{background:#fffbeb;border-color:#fcd34d}
+    li.status-done{background:#f0fdf4;border-color:#86efac}
+    li.status-error{background:#fef2f2;border-color:#fca5a5}
+    .sicon{font-size:.95rem;flex-shrink:0;margin-top:1px}
+    .uinfo{flex:1;min-width:0}
+    .utext{font-weight:600;color:var(--blue);word-break:break-all}
+    .umeta{color:var(--muted);margin-top:2px;font-size:.76rem}
+    .umeta.err{color:var(--red)}
+    .ubadge{margin-left:auto;flex-shrink:0;font-size:.7rem;padding:2px 8px;border-radius:999px;font-weight:600}
+    .b-wait{background:#e0e7ef;color:#4b6280}
+    .b-run{background:#fef3c7;color:#92400e}
+    .b-ok{background:#dcfce7;color:#166534}
+    .b-fail{background:#fee2e2;color:#991b1b}
+    /* download */
+    #download-section{display:none;text-align:center;padding:24px}
+    #download-section .big-icon{font-size:2.8rem}
+    #download-section h3{margin:10px 0 5px;font-size:1.05rem;color:var(--green)}
+    #download-section p{color:var(--muted);font-size:.83rem;margin-bottom:16px}
+    /* reset */
+    #reset-btn{background:none;border:none;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer;text-decoration:underline}
+    #reset-btn:hover{color:var(--blue)}
+    /* error banner */
+    #error-banner{display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:.85rem;margin-top:14px}
+    #error-banner strong{display:block;margin-bottom:3px}
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6M11 8v6"/>
+  </svg>
+  <div><h1>URL Scraper</h1><p>Extract web content &amp; export to Word</p></div>
+</header>
+
+<main>
+
+  <!-- Input card -->
+  <div class="card" id="input-card">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Input URLs
+    </h2>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="file-tab">Upload File</button>
+      <button class="tab-btn" data-tab="text-tab">Paste URLs</button>
+    </div>
+
+    <!-- File tab -->
+    <div class="tab-panel active" id="file-tab">
+      <div class="drop-zone" id="drop-zone">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1f497d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <p>Drag &amp; drop your Excel or CSV file here<br>or <strong id="browse-link">browse to upload</strong></p>
+        <p style="font-size:.73rem;margin-top:5px;">Supports .xlsx · .xls · .csv &nbsp;|&nbsp; Column named <code>URL</code> or first column</p>
+      </div>
+      <input type="file" id="file-input" accept=".xlsx,.xls,.csv"/>
+      <div id="file-name"></div>
+    </div>
+
+    <!-- Text tab -->
+    <div class="tab-panel" id="text-tab">
+      <textarea id="urls-textarea" placeholder="https://example.com&#10;https://another-site.org&#10;example.net"></textarea>
+      <p class="helper">One URL per line &nbsp;·&nbsp; <code>https://</code> added automatically if missing</p>
+    </div>
+
+    <!-- Settings -->
+    <details style="margin-top:18px;">
+      <summary>&#9881; Advanced Settings</summary>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label for="s-timeout">Request Timeout (seconds)</label>
+          <input type="number" id="s-timeout" value="10" min="5" max="120"/>
+        </div>
+        <div class="setting-item">
+          <label for="s-delay">Delay Between Requests (seconds)</label>
+          <input type="number" id="s-delay" value="0" min="0" max="30" step="0.5"/>
+        </div>
+        <div class="setting-item">
+          <label for="s-maxtext">Max Text per URL (chars, 0=unlimited)</label>
+          <input type="number" id="s-maxtext" value="0" min="0" max="500000" step="1000"/>
+        </div>
+      </div>
+    </details>
+
+    <div id="error-banner"><strong>&#9888; Error</strong><span id="error-msg"></span></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="start-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Start Scraping
+      </button>
+      <button id="reset-btn" style="display:none;">&#8635; Start Over</button>
+    </div>
+  </div>
+
+  <!-- Progress card -->
+  <div class="card" id="progress-section">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Live Progress
+    </h2>
+    <div class="meta-row">
+      <span class="chip chip-blue"  id="chip-total">0 URLs</span>
+      <span class="chip chip-green" id="chip-ok">0 done</span>
+      <span class="chip chip-red"   id="chip-err" style="display:none">0 errors</span>
+      <span class="chip chip-amber" id="chip-words" style="display:none">0 words</span>
+      <span id="timer">0s</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progress-bar"></div>
+      <div class="progress-label-inside" id="bar-counter">Ready</div>
+    </div>
+    <div id="progress-label">Preparing&hellip;</div>
+    <ul id="url-list"></ul>
+  </div>
+
+  <!-- Download card -->
+  <div class="card" id="download-section">
+    <div class="big-icon">&#x2705;</div>
+    <h3>Scraping Complete!</h3>
+    <p id="dl-summary">All URLs processed.</p>
+    <a id="download-link" href="#" class="btn btn-success" style="display:inline-flex;text-decoration:none;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download Word Document
+    </a>
+  </div>
+
+</main>
+
+<script>
+// ── Tab switching ──────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+let activeTab = () => document.querySelector('.tab-btn.active').dataset.tab;
+
+// ── Drop zone ──────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const fileNameEl = document.getElementById('file-name');
+let selectedFile = null;
+
+document.getElementById('browse-link').addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag-over'); }));
+['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag-over'); }));
+dropZone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) setFile(f); });
+
+function setFile(f) {
+  const ext = f.name.split('.').pop().toLowerCase();
+  if (!['xlsx','xls','csv'].includes(ext)) { alert('Please upload an Excel (.xlsx/.xls) or CSV file.'); return; }
+  selectedFile = f;
+  fileNameEl.textContent = '\uD83D\uDCCE ' + f.name + '  (' + (f.size / 1024).toFixed(1) + ' KB)';
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────
+let timerInterval = null, startTime = 0;
+let _doneForEta = 0, _totalForEta = 0;
+function startTimer() {
+  startTime = Date.now();
+  _doneForEta = 0;
+  timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    let txt = elapsed + 's';
+    if (_doneForEta > 0 && _doneForEta < _totalForEta) {
+      const avg = elapsed / _doneForEta;
+      const remaining = Math.ceil(avg * (_totalForEta - _doneForEta));
+      txt += '  ·  ETA ' + remaining + 's';
+    }
+    document.getElementById('timer').textContent = txt;
+  }, 1000);
+}
+function stopTimer() { clearInterval(timerInterval); }
+
+// ── Start ──────────────────────────────────────────────────────────────
+const startBtn = document.getElementById('start-btn');
+const resetBtn = document.getElementById('reset-btn');
+startBtn.addEventListener('click', doScrape);
+
+function showError(msg) {
+  document.getElementById('error-msg').textContent = ' ' + msg;
+  document.getElementById('error-banner').style.display = 'block';
+}
+function hideError() {
+  document.getElementById('error-banner').style.display = 'none';
+}
+
+async function doScrape() {
+  hideError();
+  const timeoutVal = parseInt(document.getElementById('s-timeout').value);
+  const delayVal   = parseFloat(document.getElementById('s-delay').value);
+  const maxText    = parseInt(document.getElementById('s-maxtext').value);
+  const timeout    = isNaN(timeoutVal) ? 10 : timeoutVal;
+  const delay      = isNaN(delayVal)   ? 0  : delayVal;
+  const max_text   = isNaN(maxText)    ? 0  : maxText;
+
+  let fetchOpts;
+  if (activeTab() === 'file-tab') {
+    if (!selectedFile) { alert('Please select a file first.'); return; }
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    fd.append('timeout',  timeout);
+    fd.append('delay',    delay);
+    fd.append('max_text', max_text);
+    fetchOpts = { method: 'POST', body: fd };
+  } else {
+    const raw = document.getElementById('urls-textarea').value;
+    const urls = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!urls.length) { alert('Please enter at least one URL.'); return; }
+    fetchOpts = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls, timeout, delay, max_text })
+    };
+  }
+
+  startBtn.disabled = true;
+  resetBtn.style.display = 'none';
+
+  let resp, data;
+  try {
+    resp = await fetch('/scrape', fetchOpts);
+  } catch(e) {
+    showError('Could not reach server. Is it running? (' + e.message + ')');
+    startBtn.disabled = false;
+    return;
+  }
+
+  const rawText = await resp.text();
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (e) {
+    showError('Server returned an invalid response: ' + (rawText || resp.status + ' ' + resp.statusText));
+    startBtn.disabled = false;
+    return;
+  }
+
+  if (!resp.ok || data.error) {
+    showError(data.error || ('Server error: ' + resp.status + ' ' + resp.statusText));
+    startBtn.disabled = false;
+    return;
+  }
+
+  showProgress(data.job_id, data.total);
+}
+
+// ── Progress (SSE) ─────────────────────────────────────────────────────
+function showProgress(jobId, total) {
+  const sec = document.getElementById('progress-section');
+  sec.style.display = 'block';
+  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('chip-total').textContent = total + ' URL' + (total !== 1 ? 's' : '');
+  document.getElementById('url-list').innerHTML = '';
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('bar-counter').textContent = '0 / ' + total;
+  startTimer();
+
+  const bar      = document.getElementById('progress-bar');
+  const barCtr   = document.getElementById('bar-counter');
+  const label    = document.getElementById('progress-label');
+  const chipOk   = document.getElementById('chip-ok');
+  const chipErr  = document.getElementById('chip-err');
+  const chipW    = document.getElementById('chip-words');
+  let doneCount = 0, errCount = 0, totalWords = 0;
+  _totalForEta = total;
+  const itemMap = {};
+  // track per-url start times
+  const urlStart = {};
+
+  const es = new EventSource('/stream/' + jobId);
+  es.onmessage = e => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === 'heartbeat') return;
+
+    if (msg.type === 'progress') {
+      const pct = Math.round(msg.index / total * 100);
+      if (msg.status === 'scraping') {
+        urlStart[msg.index] = Date.now();
+        const li = document.createElement('li');
+        li.id = 'ui-' + msg.index;
+        li.className = 'status-scraping';
+        li.innerHTML = `
+          <span class="sicon">&#x23F3;</span>
+          <div class="uinfo">
+            <div class="utext">${esc(msg.url)}</div>
+            <div class="umeta">Fetching&hellip;</div>
+          </div>
+          <span class="ubadge b-run">Fetching</span>`;
+        document.getElementById('url-list').appendChild(li);
+        li.scrollIntoView({ block: 'nearest' });
+        itemMap[msg.index] = li;
+        label.textContent = `Scraping page ${msg.index} of ${total}\u2026`;
+        barCtr.textContent = (msg.index - 1) + ' / ' + total;
+        bar.style.width = Math.max(4, pct - 4) + '%';
+      } else {
+        const li = itemMap[msg.index];
+        if (!li) return;
+        const elapsed = urlStart[msg.index] ? ((Date.now() - urlStart[msg.index]) / 1000).toFixed(1) + 's' : '';
+        if (msg.status === 'done') {
+          doneCount++;
+          _doneForEta = doneCount;
+          totalWords += msg.words || 0;
+          li.className = 'status-done';
+          li.querySelector('.sicon').textContent    = '\u2705';
+          li.querySelector('.umeta').textContent    = (msg.title ? `"${trunc(msg.title, 60)}"  \u2014  ` : '') + `~${msg.words} words  \u00B7  ${elapsed}`;
+          li.querySelector('.ubadge').className     = 'ubadge b-ok';
+          li.querySelector('.ubadge').textContent   = 'Done';
+          chipW.style.display = '';
+          chipW.textContent   = totalWords.toLocaleString() + ' words';
+        } else {
+          errCount++;
+          _doneForEta = doneCount + errCount;
+          li.className = 'status-error';
+          li.querySelector('.sicon').textContent    = '\u274C';
+          li.querySelector('.umeta').textContent    = (msg.error || 'Failed') + '  \u00B7  ' + elapsed;
+          li.querySelector('.umeta').className      = 'umeta err';
+          li.querySelector('.ubadge').className     = 'ubadge b-fail';
+          li.querySelector('.ubadge').textContent   = 'Error';
+          chipErr.style.display = '';
+          chipErr.textContent   = errCount + ' error' + (errCount !== 1 ? 's' : '');
+        }
+        bar.style.width = pct + '%';
+        barCtr.textContent = doneCount + errCount + ' / ' + total + '  (' + pct + '%)';
+        label.textContent = `Page ${msg.index} of ${total} done`;
+        chipOk.textContent = doneCount + ' done';
+      }
+    }
+
+    if (msg.type === 'complete') {
+      es.close(); stopTimer();
+      bar.style.width = '100%';
+      barCtr.textContent = total + ' / ' + total + '  (100%)';
+      label.textContent = 'All done!';
+      showDownload(jobId, total, doneCount, errCount, msg.total_words || totalWords);
+    }
+    if (msg.type === 'error') {
+      es.close(); stopTimer();
+      label.textContent = 'Failed.';
+      showError('Scraping error: ' + msg.message);
+      startBtn.disabled = false;
+      resetBtn.style.display = '';
+    }
+  };
+  es.onerror = () => {
+    es.close(); stopTimer();
+    label.textContent = 'Connection lost.';
+    showError('Lost connection to server. Refresh the page and try again.');
+    startBtn.disabled = false;
+    resetBtn.style.display = '';
+  };
+}
+
+// ── Download ───────────────────────────────────────────────────────────
+function showDownload(jobId, total, ok, err, words) {
+  const sec = document.getElementById('download-section');
+  sec.style.display = 'block';
+  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('dl-summary').textContent =
+    `${ok} of ${total} URL${total !== 1 ? 's' : ''} scraped successfully` +
+    (err ? ` \u00B7 ${err} failed` : '') +
+    ` \u00B7 ${words.toLocaleString()} words total.`;
+  document.getElementById('download-link').href = '/download/' + jobId;
+  resetBtn.style.display = '';
+  startBtn.disabled = false;
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────
+resetBtn.addEventListener('click', () => {
+  hideError();
+  selectedFile = null;
+  fileInput.value = '';
+  fileNameEl.textContent = '';
+  document.getElementById('urls-textarea').value = '';
+  document.getElementById('url-list').innerHTML = '';
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('bar-counter').textContent = 'Ready';
+  document.getElementById('progress-label').textContent = 'Preparing\u2026';
+  document.getElementById('chip-ok').textContent   = '0 done';
+  document.getElementById('chip-err').style.display  = 'none';
+  document.getElementById('chip-words').style.display = 'none';
+  document.getElementById('timer').textContent = '0s';
+  document.getElementById('progress-section').style.display  = 'none';
+  document.getElementById('download-section').style.display  = 'none';
+  resetBtn.style.display = 'none';
+  startBtn.disabled = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function trunc(s, n) { return s.length > n ? s.slice(0, n) + '\u2026' : s; }
+</script>
+</body>
+</html>
