@@ -272,6 +272,46 @@ def _walk_content(elem: Tag, base_url: str) -> list[dict[str, object]]:
                                "text": f"> {text}"})
             return
 
+        # Detect FAQ questions by class/id patterns on any element.
+        # Common patterns: <button class="accordion-button">, <div class="faq-question">,
+        # <span class="question">, <li class="faq-item"> with child button, etc.
+        _FAQ_Q_CLS = {
+            "question", "faq-q", "faq-question", "faq_question",
+            "accordion-button", "accordion-title", "accordion-header",
+            "collapse-title", "collapse-button",
+            "panel-title", "card-header",
+        }
+        node_cls  = " ".join(node.get("class", [])).lower()
+        node_id   = (node.get("id") or "").lower()
+
+        # Direct class/id match on current element
+        if any(p in node_cls or p in node_id for p in _FAQ_Q_CLS):
+            text = _inline(node)
+            if text:
+                blocks.append({"tag": tag, "type": "faq_question", "text": text})
+            # Still recurse for answer children if it's a container (not a button/span)
+            if tag not in {"button", "span", "a", "strong", "em", "b", "i"}:
+                for child in node.children:
+                    if isinstance(child, Tag):
+                        walk(child)
+            return
+
+        # <button> anywhere inside an accordion/faq container
+        if tag == "button":
+            parent = node.parent
+            if isinstance(parent, Tag):
+                p_cls = " ".join(parent.get("class", [])).lower()
+                p_id  = (parent.get("id") or "").lower()
+                _FAQ_CONTAINERS = {"faq", "accordion", "collapse", "panel"}
+                if any(k in p_cls or k in p_id for k in _FAQ_CONTAINERS):
+                    text = _inline(node)
+                    if text and not text.lower().startswith("skip"):
+                        blocks.append({"tag": "button", "type": "faq_question",
+                                       "text": text})
+                    return
+            # Non-FAQ button — skip
+            return
+
         for child in node.children:
             if isinstance(child, Tag):
                 walk(child)
