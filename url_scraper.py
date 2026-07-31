@@ -115,60 +115,147 @@ def _is_internal_link(base_url: str, href: str) -> bool:
     return bool(base_host) and href_host == base_host
 
 
-def _extract_content_blocks(main: Tag, base_url: str) -> list[dict[str, object]]:
+def _walk_content(elem: Tag, base_url: str) -> list[dict[str, object]]:
+    """
+    Walk DOM in document order and return structured blocks.
+    Captures headings, paragraphs, lists, inline images, tables, code, CTA links.
+    Links rendered as [text] (url) inline in text.
+    """
     blocks: list[dict[str, object]] = []
 
-    for elem in main.find_all(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li"]):
-        segments: list[dict[str, object]] = []
-        plain_parts: list[str] = []
+    _SKIP = {"script", "style", "noscript", "meta", "link",
+             "head", "template", "canvas", "select", "textarea", "iframe"}
 
-        def push_text(text: str):
-            cleaned = " ".join(_sanitize_xml_text(text).split())
-            if cleaned:
-                segments.append({"type": "text", "text": cleaned})
-                plain_parts.append(cleaned)
-
-        for child in elem.children:
+    def _inline(node: Tag) -> str:
+        parts: list[str] = []
+        for child in node.children:
             if isinstance(child, NavigableString):
-                push_text(str(child))
-            elif isinstance(child, Tag) and child.name == "a":
-                link_text = " ".join(_sanitize_xml_text(child.get_text(" ", strip=True)).split())
-                if not link_text:
-                    continue
-                href = _resolve_url(base_url, child.get("href", ""))
-                visible_text = link_text if not href else f"{link_text} ({href})"
-                segments.append({
-                    "type": "link",
-                    "text": link_text,
-                    "href": href or None,
-                    "internal": _is_internal_link(base_url, href) if href else None,
-                })
-                plain_parts.append(visible_text)
-            elif isinstance(child, Tag) and child.name == "img":
-                src = _resolve_url(base_url, child.get("src", ""))
-                alt = " ".join(_sanitize_xml_text(child.get("alt", "")).split())
-                title = " ".join(_sanitize_xml_text(child.get("title", "")).split())
-                if src or alt or title:
-                    segments.append({
-                        "type": "image",
-                        "src": src or None,
-                        "alt": alt,
-                        "title": title,
-                    })
-                    if alt:
-                        plain_parts.append(alt)
+                txt = " ".join(_sanitize_xml_text(str(child)).split())
+                if txt:
+                    parts.append(txt)
             elif isinstance(child, Tag):
-                push_text(child.get_text(" ", strip=True))
+                cn = (child.name or "").lower()
+                if cn in _SKIP:
+                    continue
+                if cn == "a":
+                    lt = " ".join(_sanitize_xml_text(
+                        child.get_text(" ", strip=True)).split())
+                    href = _resolve_url(base_url, child.get("href", ""))
+                    if lt and href:
+                        parts.append(f"[{lt}] ({href})")
+                    elif lt:
+                        parts.append(lt)
+                elif cn == "img":
+                    pass  # captured as block
+                elif cn in {"code", "kbd", "samp", "var", "tt"}:
+                    ct = _sanitize_xml_text(child.get_text("", strip=True))
+                    if ct:
+                        parts.append(f"`{ct}`")
+                else:
+                    parts.append(_inline(child))
+        return " ".join(parts).strip()
 
-        plain_text = " ".join(" ".join(plain_parts).split())
-        if plain_text or segments:
-            blocks.append({
-                "tag": elem.name,
-                "text": plain_text,
-                "segments": segments,
-            })
+    def _table_rows(tbl: Tag) -> list[list[str]] | None:
+        rows: list[list[str]] = []
+        for tr in tbl.find_all("tr"):
+            cells = [_inline(c) for c in tr.find_all(["th", "td"])]
+            if any(c.strip() for c in cells):
+                rows.append(cells)
+        return rows if rows else None
+
+    def walk(node: Tag) -> None:
+        if not isinstance(node, Tag):
+            return
+        tag = (node.name or "").lower()
+        if not tag or tag in _SKIP:
+            return
+
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            text = _inline(node)
+            if text:
+                blocks.append({"tag": tag, "type": "heading", "text": text})
+            return
+
+        if tag == "p":
+            text = _inline(node)
+            if text and len(text) > 3:
+                blocks.append({"tag": "p", "type": "paragraph", "text": text})
+            for img in node.find_all("img", recursive=True):
+                _add_img_block(img)
+            return
+
+        if tag == "li":
+            text = _inline(node)
+            if text:
+                blocks.append({"tag": "li", "type": "list_item", "text": text})
+            return
+
+        if tag == "img":
+            _add_img_block(node)
+            return
+
+        if tag == "pre":
+            code_node = node.find("code")
+            raw = _sanitize_xml_text((code_node or node).get_text("", strip=False))
+            if raw.strip():
+                lang = ""
+                for cls in (code_node or node).get("class", []):
+                    if "language-" in cls or "lang-" in cls:
+                        lang = cls.split("-", 1)[-1]; break
+                blocks.append({"tag": "pre", "type": "code",
+                               "text": raw, "language": lang})
+            return
+
+        if tag == "code" and not node.find_parent("pre"):
+            raw = _sanitize_xml_text(node.get_text("", strip=True))
+            if raw.strip():
+                blocks.append({"tag": "code", "type": "code",
+                               "text": raw, "language": ""})
+            return
+
+        if tag == "table":
+            rows = _table_rows(node)
+            if rows:
+                blocks.append({"tag": "table", "type": "table", "rows": rows})
+            return
+
+        if tag == "a":
+            cls = " ".join(node.get("class", [])).lower()
+            if any(k in cls for k in ["btn", "cta", "button"]):
+                lt = " ".join(_sanitize_xml_text(
+                    node.get_text(" ", strip=True)).split())
+                href = _resolve_url(base_url, node.get("href", ""))
+                if lt and href and not lt.lower().startswith("skip"):
+                    blocks.append({"tag": "cta", "type": "cta",
+                                   "text": lt, "href": href})
+            return
+
+        for child in node.children:
+            if isinstance(child, Tag):
+                walk(child)
+
+    def _add_img_block(img: Tag) -> None:
+        src = _resolve_url(base_url, img.get("src", ""))
+        alt = " ".join(_sanitize_xml_text(img.get("alt", "")).split())
+        if not src and not alt:
+            return
+        blocks.append({
+            "tag": "img", "type": "image",
+            "src": src, "alt": alt or "N/A",
+            "title": " ".join(_sanitize_xml_text(img.get("title", "")).split()),
+            "width": _sanitize_xml_text(str(img.get("width", ""))).strip(),
+            "height": _sanitize_xml_text(str(img.get("height", ""))).strip(),
+        })
+
+    for child in elem.children:
+        if isinstance(child, Tag):
+            walk(child)
 
     return blocks
+
+
+# Keep old name as alias so CLI code still works
+_extract_content_blocks = _walk_content
 
 
 def _collect_images(soup: BeautifulSoup, base_url: str) -> list[dict[str, str]]:
@@ -403,83 +490,85 @@ def _format_url_section(index: int, result: dict) -> str:
             lines.append("")
             lines.append("**Breadcrumb:** " + " > ".join(crumbs))
 
-    h1_values = []
-    headings = details.get("headings") if isinstance(details, dict) else {}
-    if isinstance(headings, dict):
-        h1_values = headings.get("h1") or []
-    if h1_values:
-        lines.append("")
-        lines.append("## " + _sanitize_xml_text(str(h1_values[0])))
-
-    ctas = details.get("cta_buttons") if isinstance(details, dict) else []
-    if isinstance(ctas, list) and ctas:
-        chunks = []
-        cta_texts: set[str] = set()
-        for c in ctas[:10]:
-            if not isinstance(c, dict):
-                continue
-            txt = _sanitize_xml_text(str(c.get("text", ""))).strip()
-            href = _sanitize_xml_text(str(c.get("href", ""))).strip()
-            if txt:
-                cta_texts.add(txt.lower())
-            if txt and href:
-                chunks.append(f"[{txt}]({href})")
-            elif txt:
-                chunks.append(txt)
-        if chunks:
-            lines.append("")
-            lines.append("**CTA buttons:** " + " | ".join(chunks))
-
     lines.append("")
     lines.append("---")
     lines.append("")
 
     blocks = details.get("content_blocks") if isinstance(details, dict) else []
-    breadcrumb_text = " ".join(
-        _sanitize_xml_text(str(c.get("text", ""))).strip().lower()
-        for c in breadcrumb if isinstance(c, dict)
-    ).strip()
+    seen_img_srcs: set[str] = set()
     if isinstance(blocks, list):
         for block in blocks:
             if not isinstance(block, dict):
                 continue
-            tag = _sanitize_xml_text(str(block.get("tag", "")).lower())
-            text = _sanitize_xml_text(str(block.get("text", "")).strip())
-            if not text:
-                continue
-            lower_text = text.lower()
-            if breadcrumb_text and lower_text == breadcrumb_text:
-                continue
-            if breadcrumb_labels and len(text) < 400 and all(label in lower_text for label in breadcrumb_labels if label):
-                continue
-            if lower_text in cta_texts:
-                continue
-            if tag in {"h2", "h3", "h4", "h5", "h6"}:
-                level = max(2, min(6, int(tag[1]) if len(tag) == 2 and tag[1].isdigit() else 3))
-                lines.append("#" * level + " " + text)
-            elif tag == "li":
-                lines.append(f"- {text}")
-            elif tag != "h1":
-                lines.append(text)
-            lines.append("")
+            btype = block.get("type", "")
+            tag   = _sanitize_xml_text(str(block.get("tag", "")).lower())
 
-    images = details.get("images") if isinstance(details, dict) else []
-    if isinstance(images, list) and images:
-        for image in images:
-            if not isinstance(image, dict):
-                continue
-            src = _sanitize_xml_text(str(image.get("src", "")).strip())
-            if not src:
-                continue
-            alt = _sanitize_xml_text(str(image.get("alt", "")).strip()) or "N/A"
-            width = _sanitize_xml_text(str(image.get("width", "")).strip())
-            height = _sanitize_xml_text(str(image.get("height", "")).strip())
-            dims = f" ({width}x{height})" if width and height else ""
-            lines.append("**Image:**")
-            lines.append(f"alt text: {alt}")
-            lines.append("")
-            lines.append(f"- {_image_variant_summary(src)}: {src}{dims}")
-            lines.append("")
+            if btype == "heading":
+                level = int(tag[1]) if len(tag) == 2 and tag[1].isdigit() else 2
+                text  = _sanitize_xml_text(str(block.get("text", ""))).strip()
+                if text:
+                    lines.append(f"[H{level}] {text}")
+                    lines.append("")
+
+            elif btype == "paragraph":
+                text = _sanitize_xml_text(str(block.get("text", ""))).strip()
+                if text:
+                    lines.append(text)
+                    lines.append("")
+
+            elif btype == "list_item":
+                text = _sanitize_xml_text(str(block.get("text", ""))).strip()
+                if text:
+                    lines.append(f"- {text}")
+
+            elif btype == "image":
+                src    = _sanitize_xml_text(str(block.get("src", ""))).strip()
+                alt    = _sanitize_xml_text(str(block.get("alt", ""))).strip() or "N/A"
+                title  = _sanitize_xml_text(str(block.get("title", ""))).strip()
+                width  = _sanitize_xml_text(str(block.get("width", ""))).strip()
+                height = _sanitize_xml_text(str(block.get("height", ""))).strip()
+                if src and src in seen_img_srcs:
+                    continue
+                if src:
+                    seen_img_srcs.add(src)
+                dims = f" ({width}x{height})" if width and height else ""
+                lines.append("**Image:**")
+                lines.append(f"alt text: {alt}")
+                if title:
+                    lines.append(f"title: {title}")
+                if src:
+                    lines.append(f"- {_image_variant_summary(src)}: {src}{dims}")
+                lines.append("")
+
+            elif btype == "table":
+                rows = block.get("rows", [])
+                if rows:
+                    max_cols = max(len(r) for r in rows)
+                    norm = [r + [""] * (max_cols - len(r)) for r in rows]
+                    # sanitize pipes in cell values
+                    def _cell(v: str) -> str:
+                        return _sanitize_xml_text(str(v)).replace("|", "\\|").strip()
+                    lines.append("| " + " | ".join(_cell(c) for c in norm[0]) + " |")
+                    lines.append("| " + " | ".join(["---"] * max_cols) + " |")
+                    for row in norm[1:]:
+                        lines.append("| " + " | ".join(_cell(c) for c in row) + " |")
+                    lines.append("")
+
+            elif btype == "code":
+                lang = _sanitize_xml_text(str(block.get("language", ""))).strip()
+                code = str(block.get("text", "")).rstrip()
+                if code.strip():
+                    lines.append(f"```{lang}")
+                    lines.append(code)
+                    lines.append("```")
+                    lines.append("")
+
+            elif btype == "cta":
+                txt  = _sanitize_xml_text(str(block.get("text", ""))).strip()
+                href = _sanitize_xml_text(str(block.get("href", ""))).strip()
+                if txt and href:
+                    lines.append(f"[CTA: {txt}] ({href})")
+                    lines.append("")
 
     return "\n".join(lines).strip() + "\n"
 
@@ -585,35 +674,47 @@ def scrape_url(url: str, timeout: int = None, max_text: int = None) -> tuple[str
             breadcrumb = _collect_breadcrumb(soup, resp.url)
             cta_buttons = _collect_cta_buttons(soup, resp.url)
 
-            for tag in content_soup(["script", "style", "nav", "footer", "header",
-                                     "aside", "noscript", "form", "button", "svg", "img"]):
-                tag.decompose()
+            # ── Strip chrome / template areas ───────────────────────
+            _TMPL_TAGS = ["script", "style", "nav", "footer", "header",
+                          "aside", "noscript", "iframe", "svg"]
+            _TMPL_CLS  = ["sidebar", "side-bar", "widget", "banner",
+                          "popup", "modal", "cookie", "promo", "overlay",
+                          "breadcrumb", "related", "social", "share",
+                          "advertisement", "ads", "recommended", "toc",
+                          "table-of-content", "floating", "sticky-"]
+            _TMPL_IDS  = ["sidebar", "nav", "menu", "navigation",
+                          "breadcrumb", "cookie", "banner", "popup",
+                          "modal", "footer", "header", "toc"]
+
+            for t in content_soup(_TMPL_TAGS):
+                t.decompose()
+            for pattern in _TMPL_CLS:
+                for el in content_soup.find_all(
+                        class_=lambda c, p=pattern:
+                        c and any(p in v.lower() for v in (c if isinstance(c, list) else [c]))):
+                    el.decompose()
+            for pattern in _TMPL_IDS:
+                for el in content_soup.find_all(
+                        id=lambda i, p=pattern: i and p in i.lower()):
+                    el.decompose()
 
             main = (content_soup.find("main") or content_soup.find("article") or
-                    content_soup.find(id="content") or content_soup.find(class_="content") or
+                    content_soup.find(id=lambda i: i and "content" in i.lower()) or
+                    content_soup.find(class_=lambda c: c and "content" in
+                        " ".join(c if isinstance(c, list) else [c]).lower()) or
                     content_soup.find("body") or content_soup)
 
-            blocks = _extract_content_blocks(main, resp.url)
-            paragraphs = []
-            for block in blocks:
-                text = _sanitize_xml_text(str(block.get("text", ""))).strip()
-                if text:
-                    paragraphs.append(text)
+            blocks = _walk_content(main, resp.url)
 
-            text = "\n\n".join(paragraphs)
-            text = _sanitize_xml_text(text)
-
-            page_text_parts = [str(piece) for piece in content_soup.stripped_strings]
-            page_text_parts.extend(image.get("alt", "") for image in images if image.get("alt"))
-            page_text = _sanitize_xml_text("\n".join(piece for piece in page_text_parts if piece))
-            if page_text:
-                text = page_text
-
-            if _max_text and len(text) > _max_text:
-                text = text[:_max_text] + "\n\n[... content truncated ...]"
-
+            text = " ".join(
+                _sanitize_xml_text(str(b.get("text", ""))).strip()
+                for b in blocks
+                if b.get("type") in {"heading", "paragraph", "list_item"}
+            )
             if not text.strip():
                 text = "(No readable text content found on this page.)"
+            if _max_text and len(text) > _max_text:
+                text = text[:_max_text] + "\n\n[... content truncated ...]"
 
             parsed_page = urlparse(resp.url)
             details = {
