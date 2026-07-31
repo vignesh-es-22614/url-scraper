@@ -3,10 +3,10 @@ Flask web frontend for the URL Scraper tool.
 """
 import os, sys, json, queue, threading, tempfile, time, uuid, atexit
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 
 sys.path.insert(0, os.path.dirname(__file__))
-from url_scraper import read_urls, scrape_url, build_docx
+from url_scraper import read_urls, scrape_url, build_seo_text_report
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
@@ -14,7 +14,6 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".xlsx", ".xls", ".csv"}
 STREAM_HEARTBEAT_SECONDS = 10
 jobs: dict[str, dict] = {}
-_output_files: list[str] = []
 
 
 def _safe_int(raw, default=0):
@@ -22,17 +21,6 @@ def _safe_int(raw, default=0):
         return int(raw)
     except (TypeError, ValueError):
         return default
-
-
-def _cleanup():
-    for f in _output_files:
-        try:
-            if os.path.exists(f):
-                os.unlink(f)
-        except Exception:
-            pass
-
-atexit.register(_cleanup)
 
 
 def allowed_file(filename: str) -> bool:
@@ -97,7 +85,6 @@ def start_scrape():
         "events": queue.Queue(),
         "replay": [],
         "next_event_id": 1,
-        "output_path": None,
     }
 
     threading.Thread(target=_run_job, args=(job_id, urls, settings), daemon=True).start()
@@ -124,8 +111,16 @@ def _run_job(job_id: str, urls: list[str], settings: dict):
         _emit(job, {"type": "progress", "index": i, "total": len(urls),
                     "url": url, "status": "scraping"})
 
-        resolved_url, title, text, error, content_blocks = scrape_url(url, timeout=timeout, max_text=max_text)
-        results.append({"url": resolved_url, "title": title, "text": text, "error": error, "content_blocks": content_blocks})
+        resolved_url, title, text, error, content_blocks, details = scrape_url(url, timeout=timeout, max_text=max_text)
+        results.append({
+            "url": resolved_url,
+            "title": title,
+            "text": text,
+            "error": error,
+            "content_blocks": content_blocks,
+            "details": details,
+        })
+        job["results"] = results
         job["done"] = i
 
         _emit(job, {
@@ -139,11 +134,7 @@ def _run_job(job_id: str, urls: list[str], settings: dict):
         if i < len(urls):
             time.sleep(delay)
 
-    out_path = os.path.join(tempfile.gettempdir(), f"scraped_{job_id}.docx")
     try:
-        build_docx(results, out_path)
-        _output_files.append(out_path)
-        job["output_path"] = out_path
         job["status"] = "complete"
         ok  = sum(1 for r in results if not r["error"])
         err = sum(1 for r in results if r["error"])
@@ -152,6 +143,26 @@ def _run_job(job_id: str, urls: list[str], settings: dict):
     except Exception as e:
         job["status"] = "error"
         _emit(job, {"type": "error", "message": str(e)})
+
+
+def _download_seo_response(job_id: str):
+    if job_id not in jobs:
+        return jsonify({"error": "Unknown job"}), 404
+    job = jobs[job_id]
+    results = job.get("results") or []
+    if not results:
+        return jsonify({"error": "Output file not ready"}), 404
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    report_text = build_seo_text_report(results)
+    response = Response(report_text, mimetype="text/markdown; charset=utf-8")
+    response.headers["Content-Disposition"] = f'attachment; filename="scraped_content_{timestamp}.md"'
+    return response
+
+
+@app.route("/download-seo/<job_id>")
+def download_seo(job_id: str):
+    return _download_seo_response(job_id)
 
 
 @app.route("/stream/<job_id>")
@@ -203,17 +214,7 @@ def stream(job_id: str):
 
 @app.route("/download/<job_id>")
 def download(job_id: str):
-    if job_id not in jobs:
-        return jsonify({"error": "Unknown job"}), 404
-    path = jobs[job_id].get("output_path")
-    if not path or not os.path.exists(path):
-        return jsonify({"error": "Output file not ready"}), 404
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return send_file(
-        path, as_attachment=True,
-        download_name=f"scraped_content_{timestamp}.docx",
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
+    return _download_seo_response(job_id)
 
 
 if __name__ == "__main__":
