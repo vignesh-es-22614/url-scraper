@@ -230,6 +230,48 @@ def _walk_content(elem: Tag, base_url: str) -> list[dict[str, object]]:
                                    "text": lt, "href": href})
             return
 
+        # FAQ accordion: <details><summary>Q</summary>…answer…</details>
+        if tag == "details":
+            summary = node.find("summary")
+            if summary:
+                q = _inline(summary)
+                if q:
+                    blocks.append({"tag": "summary", "type": "faq_question",
+                                   "text": q})
+            # walk remaining children (the answer body)
+            for child in node.children:
+                if isinstance(child, Tag) and child.name != "summary":
+                    walk(child)
+            return
+
+        if tag == "summary":
+            text = _inline(node)
+            if text:
+                blocks.append({"tag": "summary", "type": "faq_question",
+                               "text": text})
+            return
+
+        # Definition lists: <dl><dt>term</dt><dd>definition</dd></dl>
+        if tag == "dt":
+            text = _inline(node)
+            if text:
+                blocks.append({"tag": "dt", "type": "faq_question",
+                               "text": text})
+            return
+
+        if tag == "dd":
+            text = _inline(node)
+            if text:
+                blocks.append({"tag": "dd", "type": "paragraph", "text": text})
+            return
+
+        if tag == "blockquote":
+            text = _inline(node)
+            if text:
+                blocks.append({"tag": "blockquote", "type": "paragraph",
+                               "text": f"> {text}"})
+            return
+
         for child in node.children:
             if isinstance(child, Tag):
                 walk(child)
@@ -508,6 +550,12 @@ def _format_url_section(index: int, result: dict) -> str:
                 text  = _sanitize_xml_text(str(block.get("text", ""))).strip()
                 if text:
                     lines.append(f"[H{level}] {text}")
+                    lines.append("")
+
+            elif btype == "faq_question":
+                text = _sanitize_xml_text(str(block.get("text", ""))).strip()
+                if text:
+                    lines.append(f"**Q: {text}**")
                     lines.append("")
 
             elif btype == "paragraph":
