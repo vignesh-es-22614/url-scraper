@@ -3,10 +3,10 @@ Flask web frontend for the URL Scraper tool.
 """
 import os, sys, json, queue, threading, tempfile, time, uuid, atexit
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
 
 sys.path.insert(0, os.path.dirname(__file__))
-from url_scraper import read_urls, scrape_url, build_seo_text_report
+from url_scraper import read_urls, scrape_url, build_seo_text_report, build_seo_docx
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
@@ -215,6 +215,26 @@ def stream(job_id: str):
 @app.route("/download/<job_id>")
 def download(job_id: str):
     return _download_seo_response(job_id)
+
+
+@app.route("/download-docx/<job_id>")
+def download_docx(job_id: str):
+    if job_id not in jobs:
+        return jsonify({"error": "Unknown job"}), 404
+    results = jobs[job_id].get("results") or []
+    if not results:
+        return jsonify({"error": "Output file not ready"}), 404
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = os.path.join(tempfile.gettempdir(), f"seo_{job_id}.docx")
+    try:
+        build_seo_docx(results, out_path)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return send_file(
+        out_path, as_attachment=True,
+        download_name=f"scraped_content_{timestamp}.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 if __name__ == "__main__":

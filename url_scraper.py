@@ -628,6 +628,213 @@ def build_seo_text_report(results: list[dict]) -> str:
     return "\n\n".join(section.strip() for section in sections if section.strip()) + "\n"
 
 
+def build_seo_docx(results: list[dict], output_path: str) -> None:
+    """Write the SEO-format report into a styled Word document."""
+    doc = Document()
+
+    for section in doc.sections:
+        section.top_margin    = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin   = Inches(1.2)
+        section.right_margin  = Inches(1.2)
+
+    # Cover
+    cp = doc.add_paragraph()
+    cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cr = cp.add_run("Web Content SEO Report")
+    cr.bold = True; cr.font.size = Pt(22)
+    cr.font.color.rgb = RGBColor(0x1F, 0x49, 0x7D)
+    sp = doc.add_paragraph()
+    sp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sr = sp.add_run(
+        f"Generated: {datetime.now().strftime('%B %d, %Y %H:%M')}  ·  "
+        f"{len(results)} URL(s) processed"
+    )
+    sr.font.size = Pt(10); sr.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+    doc.add_paragraph()
+
+    def _bold_kv(para, key: str, value: str):
+        para.add_run(f"{key}: ").bold = True
+        para.add_run(value)
+
+    def _add_hyperlink_run(para, text: str, url: str):
+        """Inline clickable hyperlink."""
+        try:
+            hyperlink = OxmlElement("w:hyperlink")
+            hyperlink.set(qn("r:id"),
+                para.part.relate_to(
+                    url,
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                    is_external=True))
+            r = OxmlElement("w:r")
+            rpr = OxmlElement("w:rPr")
+            col = OxmlElement("w:color"); col.set(qn("w:val"), "0563C1"); rpr.append(col)
+            ul  = OxmlElement("w:u");    ul.set(qn("w:val"), "single");  rpr.append(ul)
+            r.append(rpr)
+            te = OxmlElement("w:t"); te.text = _sanitize_xml_text(text); r.append(te)
+            hyperlink.append(r)
+            para._p.append(hyperlink)
+        except Exception:
+            para.add_run(_sanitize_xml_text(text))
+
+    for idx, result in enumerate(results, 1):
+        safe_url   = _sanitize_xml_text(str(result.get("url", "")))
+        safe_title = _sanitize_xml_text(str(result.get("title", "")))
+        safe_error = _sanitize_xml_text(str(result.get("error", "")))
+        details    = result.get("details") or {}
+
+        # ── URL heading ──────────────────────────────────────────────
+        p = doc.add_paragraph()
+        r = p.add_run(f"URL {idx}: {safe_url}")
+        r.bold = True; r.font.size = Pt(13)
+        r.font.color.rgb = RGBColor(0x1F, 0x49, 0x7D); r.underline = True
+
+        if safe_error:
+            ep = doc.add_paragraph()
+            ep.add_run(f"Could not scrape: {safe_error}").font.color.rgb = RGBColor(0xCC, 0, 0)
+            doc.add_paragraph("─" * 80); doc.add_paragraph(); continue
+
+        # Page title
+        tp = doc.add_paragraph()
+        tr2 = tp.add_run(f"Page Title: {safe_title}")
+        tr2.italic = True; tr2.font.size = Pt(10)
+        tr2.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+
+        # ── Metadata ──────────────────────────────────────────────────
+        doc.add_paragraph().add_run("Metadata").bold = True
+        metadata = details.get("metadata") or {}
+        for key, value in [
+            ("Final URL",   details.get("final_url", safe_url)),
+            ("Domain",      details.get("domain", "")),
+            ("Status",      details.get("status_code", "")),
+            ("Language",    metadata.get("language", "")),
+            ("Canonical",   metadata.get("canonical", "")),
+            ("Description", metadata.get("description", "")),
+            ("Keywords",    metadata.get("keywords", "")),
+            ("Author",      metadata.get("author", "")),
+        ]:
+            clean = _sanitize_xml_text(str(value or "")).strip()
+            if not clean:
+                continue
+            _bold_kv(doc.add_paragraph(), key, clean)
+
+        meta_tags = metadata.get("meta_tags") or []
+        if meta_tags:
+            doc.add_paragraph().add_run("Meta Tags").bold = True
+            for item in meta_tags[:80]:
+                mk = _sanitize_xml_text(str(item.get("key", ""))).strip()
+                mv = _sanitize_xml_text(str(item.get("value", ""))).strip()
+                if mk and mv:
+                    doc.add_paragraph(f"- {mk}: {mv}")
+
+        # ── Breadcrumb ────────────────────────────────────────────────
+        breadcrumb = details.get("breadcrumb") or []
+        if breadcrumb:
+            bp = doc.add_paragraph()
+            bp.add_run("Breadcrumb: ").bold = True
+            for ci, c in enumerate(breadcrumb):
+                if ci:
+                    bp.add_run(" > ")
+                bt = _sanitize_xml_text(str(c.get("text", "")))
+                bh = _sanitize_xml_text(str(c.get("href", "")))
+                if bh:
+                    _add_hyperlink_run(bp, bt, bh)
+                else:
+                    bp.add_run(bt)
+
+        doc.add_paragraph("─" * 60)
+
+        # ── Content blocks in document order ─────────────────────────
+        seen_img_srcs: set[str] = set()
+        blocks = details.get("content_blocks") or []
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            btype = block.get("type", "")
+            text  = _sanitize_xml_text(str(block.get("text", ""))).strip()
+
+            if btype == "heading":
+                tag   = block.get("tag", "h2")
+                level = int(tag[1]) if len(tag) == 2 and tag[1].isdigit() else 2
+                if text:
+                    hp = doc.add_paragraph()
+                    hr = hp.add_run(f"[H{level}] {text}")
+                    hr.bold = True
+                    hr.font.size = Pt(max(9, 14 - level))
+                    hr.font.color.rgb = RGBColor(0x1F, 0x49, 0x7D)
+
+            elif btype in {"paragraph", "faq_question"}:
+                if text:
+                    pp = doc.add_paragraph()
+                    if btype == "faq_question":
+                        pp.add_run("Q: ").bold = True
+                    pp.add_run(text).font.size = Pt(11)
+
+            elif btype == "list_item":
+                if text:
+                    li_p = doc.add_paragraph(style="List Bullet")
+                    li_p.add_run(text).font.size = Pt(11)
+
+            elif btype == "image":
+                src    = _sanitize_xml_text(str(block.get("src", ""))).strip()
+                alt    = _sanitize_xml_text(str(block.get("alt", ""))).strip() or "N/A"
+                title  = _sanitize_xml_text(str(block.get("title", ""))).strip()
+                width  = _sanitize_xml_text(str(block.get("width", ""))).strip()
+                height = _sanitize_xml_text(str(block.get("height", ""))).strip()
+                if src and src in seen_img_srcs:
+                    continue
+                if src:
+                    seen_img_srcs.add(src)
+                dims = f" ({width}x{height})" if width and height else ""
+                ip = doc.add_paragraph()
+                ip.add_run("Image – ").bold = True
+                ip.add_run(f"alt: {alt}")
+                if title:
+                    ip.add_run(f" | title: {title}")
+                if src:
+                    doc.add_paragraph(f"{_image_variant_summary(src)}: {src}{dims}")
+
+            elif btype == "table":
+                rows = block.get("rows", [])
+                if not rows:
+                    continue
+                max_cols = max(len(r) for r in rows)
+                norm = [r + [""] * (max_cols - len(r)) for r in rows]
+                tbl = doc.add_table(rows=len(norm), cols=max_cols)
+                tbl.style = "Table Grid"
+                for ri, row in enumerate(norm):
+                    for ci, cell in enumerate(row):
+                        tbl.cell(ri, ci).text = _sanitize_xml_text(str(cell))
+                        if ri == 0:
+                            for run in tbl.cell(0, ci).paragraphs[0].runs:
+                                run.bold = True
+                doc.add_paragraph()
+
+            elif btype == "code":
+                lang = _sanitize_xml_text(str(block.get("language", ""))).strip()
+                code = _sanitize_xml_text(str(block.get("text", ""))).rstrip()
+                if code.strip():
+                    lbl = doc.add_paragraph()
+                    lbl.add_run(f"Code{(' (' + lang + ')') if lang else ''}:").bold = True
+                    cp2 = doc.add_paragraph(code)
+                    for run in cp2.runs:
+                        run.font.name = "Courier New"
+                        run.font.size = Pt(9)
+
+            elif btype == "cta":
+                lt   = _sanitize_xml_text(str(block.get("text", ""))).strip()
+                href = _sanitize_xml_text(str(block.get("href", ""))).strip()
+                if lt and href:
+                    ctap = doc.add_paragraph()
+                    ctap.add_run("CTA: ").bold = True
+                    _add_hyperlink_run(ctap, lt, href)
+
+        doc.add_paragraph("─" * 80)
+        doc.add_paragraph()
+
+    doc.save(output_path)
+
+
 # ── Input readers ────────────────────────────────────────────────────────────
 
 def read_urls_from_excel(path: str) -> list[str]:

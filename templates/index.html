@@ -196,13 +196,22 @@
     <div class="big-icon">&#x2705;</div>
     <h3>Scraping Complete!</h3>
     <p id="dl-summary">All URLs processed.</p>
-    <a id="download-link" href="#" class="btn btn-success" style="display:inline-flex;text-decoration:none;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      Download SEO Content
-    </a>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a id="download-link" href="#" class="btn btn-success" style="display:inline-flex;text-decoration:none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download SEO (.md)
+      </a>
+      <a id="download-docx-link" href="#" class="btn btn-primary" style="display:inline-flex;text-decoration:none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        Download Word (.docx)
+      </a>
+    </div>
   </div>
 
 </main>
@@ -548,6 +557,7 @@ function showDownload(jobId, total, ok, err, words) {
     (err ? ` \u00B7 ${err} failed` : '') +
     ` \u00B7 ${words.toLocaleString()} words total.`;
   document.getElementById('download-link').href = '/download/' + jobId;
+  document.getElementById('download-docx-link').href = '/download-docx/' + jobId;
   resetBtn.style.display = '';
   startBtn.disabled = false;
 }
