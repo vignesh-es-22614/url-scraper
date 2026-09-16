@@ -44,6 +44,12 @@ URLS_FILE = os.path.join(ROOT, "urls.txt")
 TIMEOUT = int(os.environ.get("SCRAPE_TIMEOUT", "30"))
 MAX_WORKERS = int(os.environ.get("SCRAPE_WORKERS", "4"))
 
+# Links back to the two ways of adding URLs, since the published site is static
+# output and has no scrape form of its own.
+REPO = os.environ.get("GITHUB_REPOSITORY", "vignesh-es-22614/url-scraper")
+RUN_ACTION_URL = f"https://github.com/{REPO}/actions/workflows/publish.yml"
+EDIT_URLS_URL = f"https://github.com/{REPO}/edit/main/urls.txt"
+
 
 def read_url_list() -> list[str]:
     """URLs from the SCRAPE_URLS env var if set, else from urls.txt."""
@@ -153,7 +159,15 @@ def build_index(results: list[dict], slugs: list[str]) -> str:
         ".dl{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 0}\n"
         ".dl a{display:inline-block;padding:8px 16px;border-radius:7px;"
         "background:var(--card);border:1px solid var(--line);text-decoration:none;"
-        "font-size:.85rem;font-weight:600}\n</style>\n</head>\n"
+        "font-size:.85rem;font-weight:600}\n"
+        ".add{margin:28px 0 0;background:var(--card);border:1px solid var(--line);"
+        "border-radius:10px;padding:18px 22px}\n"
+        ".add h2{margin:0 0 8px;font-size:.95rem}\n"
+        ".add p{margin:0 0 8px;font-size:.85rem;color:var(--muted)}\n"
+        ".add ol{margin:0 0 8px;padding-left:20px;font-size:.85rem}\n"
+        ".add li{margin:5px 0}\n"
+        ".add code{background:var(--code-bg);padding:1px 5px;border-radius:4px;"
+        "font-size:.85em}\n</style>\n</head>\n"
         '<body id="top"><div class="topbar"><div class="inner">'
         "<div><h1>URL Scraper</h1>"
         '<div class="sub">%d page%s &middot; rebuilt %s</div></div>'
@@ -163,13 +177,21 @@ def build_index(results: list[dict], slugs: list[str]) -> str:
         "</tr></thead><tbody>%s</tbody></table>\n"
         '<div class="dl"><a href="report.md">SEO report (.md)</a>'
         '<a href="scraped.docx">Word export (.docx)</a></div>\n'
+        '<div class="add"><h2>Scrape more pages</h2>'
+        "<p>This page is static output, so it has no scrape form. Add URLs one "
+        "of two ways &mdash; both rebuild and republish this site:</p><ol>"
+        '<li><a href="%s">Run the action</a> and paste URLs into the '
+        '<code>urls</code> box (nothing to commit).</li>'
+        '<li><a href="%s">Edit urls.txt</a> and commit.</li>'
+        "</ol><p>For an upload form with instant results, run the web app "
+        "instead &mdash; see the README.</p></div>\n"
         '<p class="foot">Built by the Scrape and publish Action from urls.txt</p>\n'
         "</div></body></html>\n"
         % (_READABLE_CSS, len(results), "" if len(results) == 1 else "s",
            _esc(generated),
            "".join('<div class="card"><div class="k">%s</div>'
                    '<div class="v">%s</div></div>' % (k, v) for k, v in cards),
-           "".join(rows))
+           "".join(rows), _esc(RUN_ACTION_URL), _esc(EDIT_URLS_URL))
     )
 
 
