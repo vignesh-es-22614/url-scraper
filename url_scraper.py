@@ -48,6 +48,13 @@ REQUEST_TIMEOUT = 15       # seconds (default)
 DELAY_BETWEEN_REQUESTS = 1 # seconds — be polite
 MAX_TEXT_LENGTH = 0      # characters per URL (0 = unlimited, default)
 MAX_HTML_EXPORT_CHARS = 30000
+MAX_PAGE_BYTES = 8 * 1024 * 1024   # refuse to parse anything larger as HTML
+
+# Only these are parsed as pages; a sitemap listing a PDF must not be read as
+# HTML, which produces megabytes of binary noise per file.
+_HTML_MIME_TYPES = {
+    "text/html", "application/xhtml+xml", "application/xml", "text/xml",
+}
 
 _INVALID_XML_RE = re.compile(
     r"[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]"
@@ -1307,19 +1314,46 @@ def scrape_url(url: str, timeout: int = None, max_text: int = None) -> tuple[str
 
     for candidate in candidates:
         try:
-            resp = requests.get(candidate, headers=HEADERS, timeout=_timeout)
+            resp = requests.get(candidate, headers=HEADERS,
+                                timeout=_timeout, stream=True)
             resp.raise_for_status()
+
+            ctype_header = resp.headers.get("Content-Type", "")
+            mime = ctype_header.split(";")[0].strip().lower()
+
+            # Sitemaps happily list PDFs, images and archives. Parsing those
+            # bytes as HTML yields megabytes of binary garbage per file, so
+            # reject anything that is not markup before reading the body.
+            if mime and not (mime in _HTML_MIME_TYPES or mime.startswith("text/")):
+                resp.close()
+                return (resp.url, "", "", f"Not an HTML page ({mime})", [], {})
+
+            body = b""
+            oversized = False
+            for chunk in resp.iter_content(65536):
+                body += chunk
+                if len(body) > MAX_PAGE_BYTES:
+                    oversized = True
+                    break
+            resp.close()
+
+            # Servers that mislabel binaries as text/html still get caught here.
+            if body[:5] == b"%PDF-" or body[:2] == b"PK\x03\x04":
+                return (resp.url, "", "", "Not an HTML page (binary file)", [], {})
+            if oversized:
+                return (resp.url, "", "",
+                        f"Page too large (over {MAX_PAGE_BYTES // (1024 * 1024)}MB)",
+                        [], {})
 
             # Parse raw bytes, not resp.text: requests falls back to ISO-8859-1
             # for text/html without a charset, which mangles UTF-8 punctuation
             # into mojibake. BeautifulSoup sniffs <meta charset> / BOM instead.
             declared_charset = None
-            ctype = resp.headers.get("Content-Type", "")
-            if "charset=" in ctype.lower():
-                declared_charset = ctype.lower().split("charset=", 1)[1].split(";")[0].strip() or None
+            if "charset=" in ctype_header.lower():
+                declared_charset = ctype_header.lower().split("charset=", 1)[1].split(";")[0].strip() or None
 
-            soup = BeautifulSoup(resp.content, "html.parser", from_encoding=declared_charset)
-            content_soup = BeautifulSoup(resp.content, "html.parser", from_encoding=declared_charset)
+            soup = BeautifulSoup(body, "html.parser", from_encoding=declared_charset)
+            content_soup = BeautifulSoup(body, "html.parser", from_encoding=declared_charset)
 
             title_tag = soup.find("title")
             title = _sanitize_xml_text(title_tag.get_text(strip=True) if title_tag else "(No title)")

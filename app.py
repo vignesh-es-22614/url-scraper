@@ -214,20 +214,23 @@ def _run_job(job_id: str, urls: list[str], settings: dict):
 
     final_results = [r for r in ordered_results if r is not None]
 
-    try:
-        # Build downloadable artifacts before marking complete so download links work immediately.
-        _build_markdown_artifact(job_id, final_results)
-        _build_docx_artifact(job_id, final_results)
-        _build_html_artifact(job_id, final_results)
-        job["status"] = "complete"
-        ok  = sum(1 for r in final_results if not r["error"])
-        err = sum(1 for r in final_results if r["error"])
-        total_words = sum(len(r["text"].split()) for r in final_results if not r["error"])
-        _emit(job, {"type": "complete", "ok": ok, "errors": err, "total_words": total_words})
-    except Exception as e:
-        job["artifact_error"] = str(e)
-        job["status"] = "error"
-        _emit(job, {"type": "error", "message": str(e)})
+    # Announce completion before building artifacts. A large job can spend
+    # minutes in the Word export, and blocking on it left the UI stuck on the
+    # progress view with no download buttons; the download routes build any
+    # missing artifact on demand anyway.
+    job["status"] = "complete"
+    ok  = sum(1 for r in final_results if not r["error"])
+    err = sum(1 for r in final_results if r["error"])
+    total_words = sum(len(r["text"].split()) for r in final_results if not r["error"])
+    _emit(job, {"type": "complete", "ok": ok, "errors": err, "total_words": total_words})
+
+    # Warm the artifacts so the buttons respond instantly. Cheapest first, so a
+    # failure in the expensive Word export still leaves the others ready.
+    for build in (_build_markdown_artifact, _build_html_artifact, _build_docx_artifact):
+        try:
+            build(job_id, final_results)
+        except Exception as e:
+            job["artifact_error"] = str(e)
 
 
 def _download_seo_response(job_id: str):
