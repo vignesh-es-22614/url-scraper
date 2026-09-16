@@ -49,6 +49,21 @@
     .btn-success{background:var(--green);color:#fff}.btn-success:hover{background:#15803d}
     .btn-outline{background:#fff;color:var(--blue);border:1.5px solid var(--border)}
     .btn-outline:hover{border-color:var(--blue-lt);background:#f7fafd}
+    /* sitemap tab */
+    .sm-row{display:flex;gap:10px;flex-wrap:wrap}
+    .sm-row input{flex:1;min-width:240px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:.88rem}
+    .sm-row input:focus{outline:none;border-color:var(--blue-lt)}
+    .sm-row .btn{white-space:nowrap}
+    #sitemap-status{font-size:.82rem;color:var(--muted);margin-top:10px;min-height:18px}
+    #sitemap-status.err{color:var(--red)}
+    #sitemap-status.ok{color:var(--green)}
+    .sm-tools{display:flex;align-items:center;gap:10px;margin:14px 0 8px;flex-wrap:wrap}
+    .sm-tools input{flex:1;min-width:180px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font:inherit;font-size:.82rem}
+    .sm-tools input:focus{outline:none;border-color:var(--blue-lt)}
+    .sm-count{font-size:.78rem;color:var(--muted);white-space:nowrap}
+    .sm-link{background:none;border:none;color:var(--blue-lt);font:inherit;font-size:.78rem;cursor:pointer;text-decoration:underline}
+    #sitemap-urls{width:100%;height:190px;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-family:ui-monospace,Consolas,monospace;font-size:.78rem;line-height:1.6;resize:vertical}
+    #sitemap-urls:focus{outline:none;border-color:var(--blue-lt)}
     .btn-row{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
     /* progress */
     #progress-section{display:none}
@@ -116,6 +131,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="file-tab">Upload File</button>
       <button class="tab-btn" data-tab="text-tab">Paste URLs</button>
+      <button class="tab-btn" data-tab="sitemap-tab">Sitemap</button>
     </div>
 
     <!-- File tab -->
@@ -137,6 +153,30 @@
     <div class="tab-panel" id="text-tab">
       <textarea id="urls-textarea" placeholder="https://example.com&#10;https://another-site.org&#10;example.net"></textarea>
       <p class="helper">One URL per line &nbsp;·&nbsp; <code>https://</code> added automatically if missing</p>
+    </div>
+
+    <!-- Sitemap tab -->
+    <div class="tab-panel" id="sitemap-tab">
+      <div class="sm-row">
+        <input type="text" id="sitemap-input" placeholder="example.com  or  https://example.com/sitemap.xml"/>
+        <button class="btn btn-outline" id="sitemap-btn" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          Fetch URLs
+        </button>
+      </div>
+      <p class="helper">Give a domain and robots.txt plus the usual sitemap paths are tried &nbsp;·&nbsp; sitemap index files are followed</p>
+      <div id="sitemap-status"></div>
+      <div id="sitemap-result" style="display:none;">
+        <div class="sm-tools">
+          <input type="text" id="sitemap-filter" placeholder="Filter, e.g. /data-security/"/>
+          <span class="sm-count" id="sitemap-count"></span>
+          <button class="sm-link" id="sitemap-clear" type="button">clear</button>
+        </div>
+        <textarea id="sitemap-urls" spellcheck="false"></textarea>
+        <p class="helper">Edit the list freely &mdash; whatever is in this box gets scraped</p>
+      </div>
     </div>
 
     <!-- Settings -->
@@ -242,6 +282,72 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 let activeTab = () => document.querySelector('.tab-btn.active').dataset.tab;
 
+// ── Sitemap fetcher ────────────────────────────────────────────────────
+const smInput  = document.getElementById('sitemap-input');
+const smBtn    = document.getElementById('sitemap-btn');
+const smStatus = document.getElementById('sitemap-status');
+const smResult = document.getElementById('sitemap-result');
+const smUrls   = document.getElementById('sitemap-urls');
+const smFilter = document.getElementById('sitemap-filter');
+const smCount  = document.getElementById('sitemap-count');
+let smAll = [];   // every URL the sitemap returned, before filtering
+
+function smSetStatus(msg, kind) {
+  smStatus.textContent = msg;
+  smStatus.className = kind || '';
+}
+
+function smRender() {
+  const needle = smFilter.value.trim().toLowerCase();
+  const shown = needle ? smAll.filter(u => u.toLowerCase().includes(needle)) : smAll;
+  smUrls.value = shown.join('\n');
+  smCount.textContent = needle
+    ? shown.length.toLocaleString() + ' of ' + smAll.length.toLocaleString() + ' URLs'
+    : smAll.length.toLocaleString() + ' URLs';
+}
+
+async function fetchSitemap() {
+  const source = smInput.value.trim();
+  if (!source) { smSetStatus('Enter a sitemap URL or a domain.', 'err'); return; }
+
+  smBtn.disabled = true;
+  smSetStatus('Fetching sitemap…');
+  smResult.style.display = 'none';
+
+  try {
+    const resp = await fetch('/sitemap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: source, timeout: 25 })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      smSetStatus(data.error || ('Server error: ' + resp.status), 'err');
+      return;
+    }
+    smAll = data.urls || [];
+    smFilter.value = '';
+    smRender();
+    smResult.style.display = '';
+    let msg = 'Found ' + data.count.toLocaleString() + ' URL' + (data.count === 1 ? '' : 's')
+            + ' in ' + data.sitemaps.length + ' sitemap file' + (data.sitemaps.length === 1 ? '' : 's');
+    if (data.truncated) msg += ' — capped at ' + data.limit.toLocaleString();
+    smSetStatus(msg, 'ok');
+  } catch (e) {
+    smSetStatus('Could not reach server. Is it running? (' + e.message + ')', 'err');
+  } finally {
+    smBtn.disabled = false;
+  }
+}
+
+smBtn.addEventListener('click', fetchSitemap);
+smInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchSitemap(); });
+smFilter.addEventListener('input', smRender);
+document.getElementById('sitemap-clear').addEventListener('click', () => {
+  smFilter.value = '';
+  smRender();
+});
+
 // ── Drop zone ──────────────────────────────────────────────────────────
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
@@ -319,9 +425,15 @@ async function doScrape() {
     fd.append('max_text', max_text);
     fetchOpts = { method: 'POST', body: fd };
   } else {
-    const raw = document.getElementById('urls-textarea').value;
+    const box = activeTab() === 'sitemap-tab' ? 'sitemap-urls' : 'urls-textarea';
+    const raw = document.getElementById(box).value;
     const urls = raw.split('\n').map(s => s.trim()).filter(Boolean);
-    if (!urls.length) { alert('Please enter at least one URL.'); return; }
+    if (!urls.length) {
+      alert(activeTab() === 'sitemap-tab'
+        ? 'Fetch a sitemap first, or paste URLs into the box.'
+        : 'Please enter at least one URL.');
+      return;
+    }
     fetchOpts = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

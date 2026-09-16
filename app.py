@@ -10,13 +10,14 @@ from flask import Flask, render_template, request, jsonify, send_file, Response,
 sys.path.insert(0, os.path.dirname(__file__))
 from url_scraper import (
     read_urls, scrape_url, build_seo_text_report, build_seo_docx,
-    build_readable_html_file,
+    build_readable_html_file, fetch_sitemap_urls,
 )
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {".xlsx", ".xls", ".csv"}
+SITEMAP_LIMIT = 5000           # most URLs one sitemap fetch will hand back
 STREAM_HEARTBEAT_SECONDS = 3   # keep Render proxy alive
 SCRAPE_MAX_WORKERS = 2         # keep low on free tier (0.1 CPU) to avoid starving heartbeat thread
 ARTIFACTS_DIR = os.path.join(tempfile.gettempdir(), "url_scraper_artifacts")
@@ -64,6 +65,34 @@ def _build_html_artifact(job_id: str, results: list[dict]) -> str:
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/sitemap", methods=["POST"])
+def sitemap():
+    """Pull the URL list out of a site's sitemap so it can be scraped."""
+    data = request.get_json(silent=True) or {}
+    source = (data.get("url") or "").strip()
+    if not source:
+        return jsonify({"error": "Enter a sitemap URL or a domain."}), 400
+
+    timeout = max(5, min(_safe_int(data.get("timeout"), 20), 60))
+    max_urls = max(1, min(_safe_int(data.get("max_urls"), SITEMAP_LIMIT), SITEMAP_LIMIT))
+
+    try:
+        result = fetch_sitemap_urls(source, timeout=timeout, max_urls=max_urls)
+    except Exception as e:
+        return jsonify({"error": f"Could not read sitemap: {e}"}), 400
+
+    if result["error"] and not result["urls"]:
+        return jsonify({"error": result["error"]}), 400
+
+    return jsonify({
+        "urls": result["urls"],
+        "count": len(result["urls"]),
+        "sitemaps": result["sitemaps"],
+        "truncated": result["truncated"],
+        "limit": max_urls,
+    })
 
 
 @app.route("/scrape", methods=["POST"])

@@ -44,10 +44,18 @@ pip install -r requirements.txt
 python app.py            # http://localhost:5000
 ```
 
-Upload an `.xlsx`/`.csv` of URLs or paste them in, then take the output as
-**Read page** (readable HTML), **Download HTML**, **SEO (.md)** or
-**Word (.docx)**. Deploys to Render from `render.yaml`, or to Zoho Catalyst
-AppSail — see `CATALYST_DEPLOY.md`.
+Three ways to feed it URLs:
+
+- **Upload File** — drag in an `.xlsx`, `.xls` or `.csv`
+- **Paste URLs** — one per line
+- **Sitemap** — give a domain or a sitemap URL and it pulls the list for you;
+  `robots.txt` and the usual sitemap paths are tried, sitemap index files are
+  followed, and `.xml.gz` and plain-text sitemaps work. Filter the result and
+  edit the box before scraping.
+
+Take the output as **Read page** (readable HTML), **Download HTML**,
+**SEO (.md)** or **Word (.docx)**. Deploys to Render from `render.yaml`, or to
+Zoho Catalyst AppSail — see `CATALYST_DEPLOY.md`.
 
 Note: job state lives in process memory, so run a single worker. `Procfile` and
 `render.yaml` already use one threaded `gthread` worker for this reason.

@@ -170,6 +170,168 @@ def _is_internal_link(base_url: str, href: str) -> bool:
     return bool(base_host) and href_host == base_host
 
 
+# ── Sitemap discovery ───────────────────────────────────────────────────────
+
+SITEMAP_MAX_URLS = 5000     # cap on URLs returned to the UI
+SITEMAP_MAX_FILES = 50      # cap on sitemap files read per request
+SITEMAP_COMMON_PATHS = ("/sitemap.xml", "/sitemap_index.xml",
+                        "/sitemap-index.xml", "/sitemap/sitemap.xml")
+
+
+def _fetch_sitemap_bytes(url: str, timeout: int) -> bytes:
+    resp = requests.get(url, headers=HEADERS, timeout=timeout)
+    resp.raise_for_status()
+    data = resp.content
+    # .xml.gz sitemaps, and servers that gzip without a Content-Encoding header.
+    if data[:2] == b"\x1f\x8b":
+        import gzip
+        data = gzip.decompress(data)
+    return data
+
+
+def _parse_sitemap(data: bytes, base_url: str) -> tuple[list[str], list[str]]:
+    """Return (child sitemap URLs, page URLs) from one sitemap document."""
+    text = data.decode("utf-8", "ignore").strip()
+
+    # Plain-text sitemaps: one URL per line.
+    if not text.startswith("<") and "<urlset" not in text and "<sitemapindex" not in text:
+        pages = [ln.strip() for ln in text.splitlines()
+                 if ln.strip().lower().startswith(("http://", "https://"))]
+        return [], pages
+
+    try:
+        soup = BeautifulSoup(data, "xml")
+    except Exception:
+        soup = BeautifulSoup(data, "html.parser")
+
+    children: list[str] = []
+    pages: list[str] = []
+
+    for node in soup.find_all("sitemap"):
+        loc = node.find("loc")
+        if loc and loc.get_text(strip=True):
+            children.append(_resolve_url(base_url, loc.get_text(strip=True)))
+
+    for node in soup.find_all("url"):
+        loc = node.find("loc")
+        if loc and loc.get_text(strip=True):
+            pages.append(_resolve_url(base_url, loc.get_text(strip=True)))
+
+    # Some sitemaps use <loc> without the wrapper elements above.
+    if not children and not pages:
+        for loc in soup.find_all("loc"):
+            value = loc.get_text(strip=True)
+            if value:
+                pages.append(_resolve_url(base_url, value))
+
+    return children, pages
+
+
+def _sitemap_candidates(source: str) -> list[str]:
+    """Turn user input into sitemap URLs to try, in order."""
+    cleaned = _clean_url_input(source)
+    if not cleaned:
+        return []
+    if not cleaned.startswith(("http://", "https://")):
+        cleaned = "https://" + cleaned
+
+    parsed = urlparse(cleaned)
+    if "." not in parsed.netloc or parsed.netloc.startswith(".") or parsed.netloc.endswith("."):
+        return []
+    path = (parsed.path or "").lower()
+    # Already points at a sitemap - use it as given.
+    if path.endswith((".xml", ".xml.gz", ".txt")) or "sitemap" in path:
+        return [cleaned]
+
+    root = f"{parsed.scheme}://{parsed.netloc}"
+    return [root + suffix for suffix in SITEMAP_COMMON_PATHS]
+
+
+def _sitemaps_from_robots(source: str, timeout: int) -> list[str]:
+    cleaned = _clean_url_input(source)
+    if not cleaned:
+        return []
+    if not cleaned.startswith(("http://", "https://")):
+        cleaned = "https://" + cleaned
+    parsed = urlparse(cleaned)
+    try:
+        resp = requests.get(f"{parsed.scheme}://{parsed.netloc}/robots.txt",
+                            headers=HEADERS, timeout=timeout)
+        resp.raise_for_status()
+    except Exception:
+        return []
+    found = []
+    for line in resp.text.splitlines():
+        if line.lower().startswith("sitemap:"):
+            value = line.split(":", 1)[1].strip()
+            if value:
+                found.append(value)
+    return found
+
+
+def fetch_sitemap_urls(source: str, timeout: int = 20,
+                       max_urls: int = SITEMAP_MAX_URLS) -> dict:
+    """Collect page URLs from a sitemap, sitemap index, or a bare domain.
+
+    Accepts a direct sitemap URL, or a domain - in which case robots.txt and
+    the usual sitemap paths are tried. Nested sitemap indexes are followed.
+    """
+    candidates = _sitemap_candidates(source)
+    if not candidates:
+        return {"urls": [], "sitemaps": [], "truncated": False,
+                "error": f"Not a valid URL or domain: {source.strip()!r}"}
+
+    # robots.txt is authoritative when the user gave a bare domain.
+    if len(candidates) > 1:
+        candidates = _sitemaps_from_robots(source, timeout) + candidates
+
+    queue = list(dict.fromkeys(candidates))
+    seen_files: set[str] = set()
+    read_files: list[str] = []
+    urls: list[str] = []
+    seen_urls: set[str] = set()
+    last_error = ""
+    truncated = False
+
+    while queue and len(read_files) < SITEMAP_MAX_FILES:
+        current = queue.pop(0)
+        if current in seen_files:
+            continue
+        seen_files.add(current)
+
+        try:
+            data = _fetch_sitemap_bytes(current, timeout)
+        except Exception as e:
+            last_error = f"{current}: {e}"
+            continue
+
+        children, pages = _parse_sitemap(data, current)
+        if not children and not pages:
+            continue
+
+        read_files.append(current)
+        for child in children:
+            if child not in seen_files:
+                queue.append(child)
+        for page in pages:
+            if page in seen_urls:
+                continue
+            seen_urls.add(page)
+            urls.append(page)
+            if len(urls) >= max_urls:
+                truncated = True
+                queue = []
+                break
+
+    error = ""
+    if not urls:
+        error = (f"No sitemap found. Last error - {last_error}" if last_error
+                 else "No URLs found in the sitemap.")
+
+    return {"urls": urls, "sitemaps": read_files,
+            "truncated": truncated, "error": error}
+
+
 # ── Template / chrome stripping ─────────────────────────────────────────────
 
 _TMPL_TAGS = ["script", "style", "nav", "footer", "header",
