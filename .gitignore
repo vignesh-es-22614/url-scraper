@@ -26,3 +26,15 @@ share/python-wheels/
 MANIFEST
 *.tmp
 .DS_Store
+
+# Catalyst
+catalyst_build/
+.catalyst/
+functions/*/node_modules/
+
+# Editor / agent config
+.vscode/
+.claude/
+
+# Scratch output
+_preview_*.html

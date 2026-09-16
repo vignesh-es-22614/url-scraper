@@ -2,7 +2,7 @@ services:
   - type: web
     name: url-scraper
     env: python
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --worker-class sync --timeout 120
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --worker-class gthread --timeout 120
     plan: free
     buildCommand: pip install -r requirements.txt
     envVars:
