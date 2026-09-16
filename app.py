@@ -18,6 +18,9 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {".xlsx", ".xls", ".csv"}
 SITEMAP_LIMIT = 5000           # most URLs one sitemap fetch will hand back
+# python-docx assembles the whole document in memory, so a huge batch turns the
+# Word export into an hours-long grind. Past this, offer markdown instead.
+DOCX_MAX_WORDS = 750_000
 STREAM_HEARTBEAT_SECONDS = 3   # keep Render proxy alive
 SCRAPE_MAX_WORKERS = 2         # keep low on free tier (0.1 CPU) to avoid starving heartbeat thread
 ARTIFACTS_DIR = os.path.join(tempfile.gettempdir(), "url_scraper_artifacts")
@@ -50,7 +53,23 @@ def _build_markdown_artifact(job_id: str, results: list[dict]) -> str:
     return md_path
 
 
+def _total_words(results: list[dict]) -> int:
+    return sum(len(r.get("text", "").split()) for r in results if not r.get("error"))
+
+
+class DocxTooLarge(Exception):
+    pass
+
+
 def _build_docx_artifact(job_id: str, results: list[dict]) -> str:
+    words = _total_words(results)
+    if words > DOCX_MAX_WORDS:
+        raise DocxTooLarge(
+            f"This batch is too large for the Word export "
+            f"({words:,} words across {len(results):,} pages; the limit is "
+            f"{DOCX_MAX_WORDS:,}). Use the markdown or HTML download, or scrape "
+            f"fewer URLs at a time."
+        )
     docx_path = _artifact_path(job_id, "docx")
     build_seo_docx(results, docx_path)
     return docx_path
@@ -225,12 +244,15 @@ def _run_job(job_id: str, urls: list[str], settings: dict):
     _emit(job, {"type": "complete", "ok": ok, "errors": err, "total_words": total_words})
 
     # Warm the artifacts so the buttons respond instantly. Cheapest first, so a
-    # failure in the expensive Word export still leaves the others ready.
-    for build in (_build_markdown_artifact, _build_html_artifact, _build_docx_artifact):
+    # failure in the expensive Word export still leaves the others ready, and
+    # the Word failure is kept separate from the rest.
+    for build, key in ((_build_markdown_artifact, "artifact_error"),
+                       (_build_html_artifact, "artifact_error"),
+                       (_build_docx_artifact, "docx_error")):
         try:
             build(job_id, final_results)
         except Exception as e:
-            job["artifact_error"] = str(e)
+            job[key] = str(e)
 
 
 def _download_seo_response(job_id: str):
@@ -382,8 +404,8 @@ def download_docx(job_id: str):
     if not job:
         return jsonify({"error": "Unknown job. The job may have expired or run on a different instance."}), 404
 
-    if job.get("artifact_error"):
-        return jsonify({"error": f"Could not prepare Word output: {job['artifact_error']}"}), 500
+    if job.get("docx_error"):
+        return jsonify({"error": job["docx_error"]}), 413
 
     results = job.get("results") or []
     if not results:
@@ -391,8 +413,11 @@ def download_docx(job_id: str):
 
     try:
         out_path = _build_docx_artifact(job_id, results)
+    except DocxTooLarge as e:
+        job["docx_error"] = str(e)
+        return jsonify({"error": str(e)}), 413
     except Exception as e:
-        job["artifact_error"] = str(e)
+        job["docx_error"] = str(e)
         return jsonify({"error": str(e)}), 500
 
     return send_file(

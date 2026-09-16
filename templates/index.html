@@ -434,6 +434,15 @@ async function doScrape() {
         : 'Please enter at least one URL.');
       return;
     }
+    if (urls.length > 500) {
+      const mins = Math.ceil(urls.length * 0.9 / 60);
+      if (!confirm(urls.length.toLocaleString() + ' URLs will take roughly '
+          + mins + ' minutes, and a batch this size is too big for the Word '
+          + 'export (markdown and HTML still work).\n\nUse the filter box to '
+          + 'narrow it down, or continue?')) {
+        return;
+      }
+    }
     fetchOpts = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -685,7 +694,37 @@ function showDownload(jobId, total, ok, err, words) {
   document.getElementById('view-link').href = '/view/' + jobId;
   document.getElementById('download-html-link').href = '/download-html/' + jobId;
   document.getElementById('download-link').href = '/download/' + jobId;
-  document.getElementById('download-docx-link').href = '/download-docx/' + jobId;
+
+  // The Word export is refused for very large batches, so surface that message
+  // rather than letting the browser navigate to a JSON error page.
+  const docxLink = document.getElementById('download-docx-link');
+  docxLink.href = '/download-docx/' + jobId;
+  docxLink.onclick = async (e) => {
+    e.preventDefault();
+    const original = docxLink.innerHTML;
+    docxLink.style.pointerEvents = 'none';
+    docxLink.textContent = 'Preparing Word file…';
+    try {
+      const resp = await fetch('/download-docx/' + jobId);
+      if (!resp.ok) {
+        let msg = 'Word export failed (' + resp.status + ')';
+        try { msg = (await resp.json()).error || msg; } catch (_) {}
+        showError(msg);
+        return;
+      }
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'scraped_content.docx';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (err) {
+      showError('Could not download the Word file: ' + err.message);
+    } finally {
+      docxLink.innerHTML = original;
+      docxLink.style.pointerEvents = '';
+    }
+  };
   resetBtn.style.display = '';
   startBtn.disabled = false;
 }
