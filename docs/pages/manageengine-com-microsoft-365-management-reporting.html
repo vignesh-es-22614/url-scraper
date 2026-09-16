@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>M365 management and reporting tool - ManageEngine M365 Manager Plus</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#1a1d21; --muted:#6b7280; --line:#e3e6ea;
+  --blue:#1b4f8a; --blue-lt:#2f6fb8; --green:#166534; --amber:#92400e;
+  --amber-bg:#fef3c7; --code-bg:#f2f4f7; --mark:#eef4fb;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#14171a; --card:#1c2025; --ink:#e7e9ec; --muted:#9aa3ad; --line:#2c323a;
+    --blue:#7fb2e8; --blue-lt:#9cc6f2; --green:#6ee7a8; --amber:#fbbf24;
+    --amber-bg:#3b2f12; --code-bg:#22272e; --mark:#1f2732;
+  }
+}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--blue-lt)}
+a:hover{color:var(--blue)}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px 80px}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:10;background:var(--card);
+  border-bottom:1px solid var(--line);padding:12px 20px}
+.topbar .inner{max-width:860px;margin:0 auto;display:flex;align-items:center;
+  gap:14px;flex-wrap:wrap}
+.topbar h1{margin:0;font-size:1rem;font-weight:700}
+.topbar .sub{color:var(--muted);font-size:.78rem}
+.tools{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}
+.tools label{font-size:.78rem;color:var(--muted);cursor:pointer;user-select:none;
+  display:inline-flex;align-items:center;gap:5px}
+
+/* table of contents */
+.toc{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:22px 0}
+.toc h2{margin:0 0 8px;font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted)}
+.toc ol{margin:0;padding-left:20px}
+.toc li{margin:4px 0;font-size:.9rem}
+
+/* page section */
+.page{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  margin:22px 0;overflow:hidden}
+.pg-head{padding:20px 24px;border-bottom:1px solid var(--line);background:var(--mark)}
+.pg-num{font-size:.72rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.pg-head h2{margin:4px 0 6px;font-size:1.3rem;line-height:1.35}
+.src{font-size:.83rem;word-break:break-all}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:.72rem;padding:3px 9px;border-radius:20px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.crumb{margin-top:10px;font-size:.78rem;color:var(--muted)}
+.desc{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+
+/* metadata drawer */
+.meta{border-bottom:1px solid var(--line)}
+.meta>summary{cursor:pointer;padding:11px 24px;font-size:.82rem;
+  font-weight:600;color:var(--muted)}
+.meta>summary:hover{color:var(--ink)}
+.meta .body{padding:4px 24px 18px}
+.meta table{width:100%;border-collapse:collapse;font-size:.8rem}
+.meta td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.meta td:first-child{width:180px;color:var(--muted);font-weight:600}
+
+/* article content */
+.content{padding:10px 24px 28px}
+.content h1,.content h2,.content h3,
+.content h4,.content h5,.content h6{line-height:1.3;margin:1.5em 0 .5em}
+.content h1{font-size:1.6rem}
+.content h2{font-size:1.32rem}
+.content h3{font-size:1.12rem}
+.content h4,.content h5,.content h6{font-size:1rem}
+.content p{margin:0 0 1em}
+.content ul{margin:0 0 1em;padding-left:24px}
+.content li{margin:.3em 0}
+.content blockquote{margin:0 0 1em;padding:2px 0 2px 16px;
+  border-left:3px solid var(--line);color:var(--muted)}
+.content code{background:var(--code-bg);padding:1px 5px;border-radius:4px;
+  font-size:.88em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.content pre{background:var(--code-bg);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;overflow-x:auto;margin:0 0 1em}
+.content pre code{background:none;padding:0;font-size:.84rem;line-height:1.55}
+.hlvl{display:none;font-size:.6em;font-weight:700;vertical-align:middle;
+  margin-right:8px;padding:2px 6px;border-radius:4px;
+  background:var(--mark);border:1px solid var(--line);color:var(--muted)}
+body.show-levels .hlvl{display:inline-block}
+.faq-q{font-weight:700;margin:1.2em 0 .4em!important}
+.faq-q::before{content:"Q: ";color:var(--muted)}
+.cta{display:inline-block;margin:0 8px 1em 0;padding:8px 16px;border-radius:7px;
+  background:var(--blue);color:#fff!important;font-size:.85rem;font-weight:600;
+  text-decoration:none}
+.cta:hover{background:var(--blue-lt);color:#fff!important}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin:0 0 1.2em}
+.content table{border-collapse:collapse;width:100%;font-size:.86rem}
+.content th,.content td{border:1px solid var(--line);padding:7px 10px;
+  text-align:left;vertical-align:top}
+.content th{background:var(--mark);font-weight:700}
+
+/* images */
+figure{margin:0 0 1.4em}
+figure img{max-width:100%;height:auto;display:block;border-radius:8px;
+  border:1px solid var(--line);background:var(--mark)}
+figcaption{font-size:.76rem;color:var(--muted);margin-top:6px;word-break:break-word}
+figcaption .altline{color:var(--ink)}
+body.no-images figure img{display:none}
+.img-broken{font-size:.78rem;color:var(--amber);background:var(--amber-bg);
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+
+/* errors + footer */
+.err{margin:0;padding:20px 24px;color:var(--amber);background:var(--amber-bg);
+  font-size:.9rem}
+.totop{display:block;padding:10px 24px;font-size:.75rem;color:var(--muted);
+  border-top:1px solid var(--line);text-decoration:none}
+.totop:hover{color:var(--blue)}
+.foot{text-align:center;color:var(--muted);font-size:.75rem;margin-top:26px}
+
+@media print{
+  .topbar,.tools,.totop,.toc{display:none}
+  body{background:#fff}
+  .page{border:none;margin:0 0 24px;page-break-inside:avoid}
+  .meta[open]>summary{display:none}
+}
+</style>
+</head>
+<body id="top">
+<div class="topbar"><div class="inner"><div><h1>M365 management and reporting tool - ManageEngine M365 Manager Plus</h1><div class="sub">1 page &middot; 1 scraped &middot; 16 Sep 2026, 18:32</div></div><div class="tools"><label><input type="checkbox" id="t-images" checked> Images</label><label><input type="checkbox" id="t-levels"> Heading tags</label></div></div></div>
+<div class="wrap">
+<section class="page" id="p1">
+<div class="pg-head">
+<div class="pg-num">URL 1</div>
+<h2>M365 management and reporting tool - ManageEngine M365 Manager Plus</h2>
+<a class="src" href="https://www.manageengine.com/microsoft-365-management-reporting/" target="_blank" rel="noopener noreferrer">https://www.manageengine.com/microsoft-365-management-reporting/</a>
+<div class="chips"><span class="chip">www.manageengine.com</span><span class="chip">HTTP 200</span><span class="chip">Lang: en</span><span class="chip">2,016 words</span><span class="chip">13 images</span><span class="chip">130 links (125 int / 5 ext)</span></div>
+<div class="crumb"><a href="https://www.manageengine.com/microsoft-365-management-reporting/" target="_blank" rel="noopener noreferrer">Home</a></div>
+<p class="desc">Centralize your Microsoft 365 administration and audits with M365 Manager Plus—manage users, licenses, and backups while automating tasks across Entra ID, Exchange, SharePoint, and Teams.</p>
+</div>
+<details class="meta"><summary>Metadata &amp; meta tags (31)</summary><div class="body"><table><tbody><tr><td>Final URL</td><td>https://www.manageengine.com/microsoft-365-management-reporting/</td></tr><tr><td>Domain</td><td>www.manageengine.com</td></tr><tr><td>Status</td><td>200</td></tr><tr><td>Language</td><td>en</td></tr><tr><td>Canonical</td><td>https://www.manageengine.com/microsoft-365-management-reporting/</td></tr><tr><td>Description</td><td>Centralize your Microsoft 365 administration and audits with M365 Manager Plus—manage users, licenses, and backups while automating tasks across Entra ID, Exchange, SharePoint, and Teams.</td></tr><tr><td>Keywords</td><td>m365 reporting tools, Microsoft 365 reporting tool, Microsoft 365 user license report, exchange online reporting, Microsoft 365 license usage report, Microsoft 365 user logon report, Microsoft 365 report licensed users, Microsoft 365 report mailbox size, Microsoft 365 user last logon date, Microsoft 365 report active users, Microsoft 365 exchange reports, Microsoft 365 report, Microsoft 365 user report, Microsoft 365 gui tool, Microsoft 365 monitoring tool, Microsoft 365 lync report</td></tr><tr><td>Author</td><td>ManageEngine, communications@manageengine.com</td></tr><tr><td>description</td><td>Centralize your Microsoft 365 administration and audits with M365 Manager Plus—manage users, licenses, and backups while automating tasks across Entra ID, Exchange, SharePoint, and Teams.</td></tr><tr><td>keywords</td><td>m365 reporting tools, Microsoft 365 reporting tool, Microsoft 365 user license report, exchange online reporting, Microsoft 365 license usage report, Microsoft 365 user logon report, Microsoft 365 report licensed users, Microsoft 365 report mailbox size, Microsoft 365 user last logon date, Microsoft 365 report active users, Microsoft 365 exchange reports, Microsoft 365 report, Microsoft 365 user report, Microsoft 365 gui tool, Microsoft 365 monitoring tool, Microsoft 365 lync report</td></tr><tr><td>og:title</td><td>Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus</td></tr><tr><td>og:description</td><td>Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus</td></tr><tr><td>og:type</td><td>website</td></tr><tr><td>og:url</td><td>https://www.manageengine.com/microsoft-365-management-reporting/</td></tr><tr><td>og:image</td><td>https://www.manageengine.com/microsoft-365-management-reporting/images/logo.png</td></tr><tr><td>og:site_name</td><td>ManageEngine M365 Manager Plus</td></tr><tr><td>twitter:card</td><td>summary_large_image</td></tr><tr><td>twitter:site</td><td>@ME_ADSolutions</td></tr><tr><td>twitter:title</td><td>Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus</td></tr><tr><td>twitter:description</td><td>Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus</td></tr><tr><td>twitter:image:src</td><td>https://www.manageengine.com/microsoft-365-management-reporting/images/logo.png</td></tr><tr><td>twitter:domain</td><td>http://www.microsoft365managerplus.com/</td></tr><tr><td>viewport</td><td>width=device-width, initial-scale=1</td></tr><tr><td>X-UA-Compatible</td><td>IE=edge,chrome=1</td></tr><tr><td>author</td><td>ManageEngine, communications@manageengine.com</td></tr><tr><td>distribution</td><td>Global</td></tr><tr><td>HandheldFriendly</td><td>True</td></tr><tr><td>MobileOptimized</td><td>320</td></tr><tr><td>apple-touch-fullscreen</td><td>yes</td></tr><tr><td>apple-mobile-web-app-capable</td><td>yes</td></tr><tr><td>msvalidate.01</td><td>74B237908BBED1AFD1D175AA51EA562F</td></tr></tbody></table></div></details>
+<article class="content"><p>Support</p>
+<h1><span class="hlvl">H1</span>Enhance and simplify Microsoft 365 Management, security, and governance</h1>
+<p>Effortlessly generate reports, bulk manage objects, perform audits and monitor your Microsoft 365 services with M365 Manager Plus.</p>
+<p><a href="https://www.manageengine.com/microsoft-365-management-reporting/download.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Try it for free ►</a> <a href="https://www.manageengine.com/microsoft-365-management-reporting/demo.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Schedule a personalized demo ►</a></p>
+<h3><span class="hlvl">H3</span>Microsoft Entra ID</h3>
+<p>Track activities. Manage users and resources. Streamline provisioning and licensing.</p>
+<h3><span class="hlvl">H3</span>Exchange Online</h3>
+<p>Audit mailboxes. Monitor permissions. Track email configuration changes.</p>
+<h3><span class="hlvl">H3</span>Microsoft Teams</h3>
+<p>Track team activities. Monitor changes. Simplify collaboration control.</p>
+<h3><span class="hlvl">H3</span>SharePoint Online</h3>
+<p>Secure sites. Track access. Manage permissions seamlessly.</p>
+<h3><span class="hlvl">H3</span>OneDrive for Business</h3>
+<p>Monitor file sharing. Track storage. Secure personal cloud folders.</p>
+<h2><span class="hlvl">H2</span>Dig into Microsoft 365 like never before!</h2>
+<p>Microsoft 365 management</p>
+<p>Microsoft 365 reporting</p>
+<p>Microsoft 365 auditing</p>
+<p>Microsoft 365 alerting</p>
+<p>Microsoft 365 automation</p>
+<p>Microsoft 365 monitoring</p>
+<p>Exchange Online backups</p>
+<p>Microsoft 365 delegation</p>
+<h3><span class="hlvl">H3</span>Manage with confidence</h3>
+<p>Simplify operations with tools that streamline your management tasks, enabling efficient control over your entire Microsoft 365 environment without any PowerShell or Graph API scripting.</p>
+<p>Services supported: <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-active-directory-management.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Microsoft Entra ID</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-management-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Exchange Online</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-management-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Microsoft Teams</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-sharepoint-online-management-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">SharePoint Online</a></p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-management-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss1-25.webp" alt="The management actions in M365 Manager Plus used to streamline and simplify tasks such as Microsoft 365 user creation." loading="lazy"><figcaption><span class="altline">alt: The management actions in M365 Manager Plus used to streamline and simplify tasks such as Microsoft 365 user creation.</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss1-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h3><span class="hlvl">H3</span>Get a bird’s-eye view</h3>
+<p>Gain valuable insights with over 700 comprehensive reports that help you understand usage, optimize resources, and ensure compliance with IT standards and regulations, such as HIPAA, SOX, and FISMA, across your Microsoft 365 services. Take immediate action with contextual management options and save time with custom report scheduling to deliver only the data that matters most to you.</p>
+<p>Services supported: <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-azure-active-directory-reports.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Microsoft Entra ID</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-reporting-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Exchange Online</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-reporting-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Microsoft Teams</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-sharepoint-reporting-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">SharePoint Online</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/onedrive-for-business-file-auditing-reporting.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">OneDrive for Business</a></p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-reporting-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss8-25.webp" alt="The various styles of Microsoft 365 reports that can be generated in M365 Manager Plus." loading="lazy"><figcaption><span class="altline">alt: The various styles of Microsoft 365 reports that can be generated in M365 Manager Plus.</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss8-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h3><span class="hlvl">H3</span>Always be in the know</h3>
+<p>Stay informed and compliant with real-time audits and detailed logs that ensure transparency and security across your organization. Define custom audit profiles and schedule them with thresholds and filters so you only get alerts and reports on the events that truly matter, saving you from data overload.</p>
+<p>Services supported: <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-ad-auditing-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Microsoft Entra ID</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-auditing-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Exchange Online</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-auditing-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Microsoft Teams</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-sharepoint-online-auditing-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">SharePoint Online</a> | <a href="https://www.manageengine.com/microsoft-365-management-reporting/onedrive-for-business-auditing-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">OneDrive for Business</a></p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss2-25.webp" alt="The audit reports in M365 Manager Plus display detailed real-time information with intuitive, graphical visualizations." loading="lazy"><figcaption><span class="altline">alt: The audit reports in M365 Manager Plus display detailed real-time information with intuitive, graphical visualizations.</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss2-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h3><span class="hlvl">H3</span>Be notified and be prepared</h3>
+<p>Respond quickly to suspicious activities, critical changes, service failures, and anomalies with instant alerts to keep your Microsoft 365 environment protected. Set up alerts with custom messages and levels of severity so that you get alerted only for events that deserve your attention.</p>
+<p>Services supported: Microsoft Entra ID | Exchange Online | Microsoft Teams | SharePoint Online | OneDrive for Business</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-alerts.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss3-25.webp" alt="Microsoft Entra ID | Exchange Online | Microsoft Teams | SharePoint Online | OneDrive for Business" loading="lazy"><figcaption><span class="altline">alt: Microsoft Entra ID | Exchange Online | Microsoft Teams | SharePoint Online | OneDrive for Business</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss3-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h3><span class="hlvl">H3</span>Work smarter, not harder</h3>
+<p>Automate routine tasks and cross-application workflows to save time, reduce errors, and ensure smooth operations at scale. Leverage CSV files, M365 Manager Plus reports, and shared locations as inputs for richer insights, accurate automation triggers, and greater flexibility in managing event-driven task chains.</p>
+<p>Services supported: Microsoft Entra ID | Exchange Online | Microsoft Teams | SharePoint Online | OneDrive for Business</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-automation-and-management.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss4-25.webp" alt="The automation policy configuration page in M365 Manager Plus with the configuration to update users when their manager is changed." loading="lazy"><figcaption><span class="altline">alt: The automation policy configuration page in M365 Manager Plus with the configuration to update users when their manager is changed.</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss4-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h3><span class="hlvl">H3</span>Stay ahead of service issues</h3>
+<p>Proactively monitor the health and performance of Microsoft 365 services and endpoints with real-time alerts. Gain actionable insights into outages or disruptions and respond swiftly against ransomware, malware, phishing attacks, and more.</p>
+<p>Services supported: Microsoft Entra ID | Exchange Online | Microsoft Teams | SharePoint Online | OneDrive for Business</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss5-25.webp" alt="Microsoft 365 service and endpoint health monitored with M365 Manager Plus." loading="lazy"><figcaption><span class="altline">alt: Microsoft 365 service and endpoint health monitored with M365 Manager Plus.</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss5-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h3><span class="hlvl">H3</span>Secure and recover communications</h3>
+<p>Make use of incremental backups, granular restorations, and custom retention to secure your Exchange Online resources. Quickly find items with advanced searches while encryption and automated cleanup ensure compliance and peace of mind. Protect against accidental deletions, insider threats, and ransomware attacks.</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/backup-and-restore-exchange-online.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss6-25.webp" alt="The Exchange Online backup and restore options in M365 Manager Plus with the ability to restore communications on a granular scale." loading="lazy"><figcaption><span class="altline">alt: The Exchange Online backup and restore options in M365 Manager Plus with the ability to restore communications on a granular scale.</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss6-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h3><span class="hlvl">H3</span>Secure access and streamline operations</h3>
+<p>Enhance and secure admin operations with role-based access controls and the granular delegation of tasks. Use role-based access controls and virtual tenants to delegate tasks safely while maintaining control over sensitive data across different teams or departments.</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-delegation.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Learn more</a>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss7-25.webp" alt="The help desk delegation module of M365 Manager Plus with the details of users and built-in technicians who are assigned custom roles to control the tasks and reports in the product." loading="lazy"><figcaption><span class="altline">alt: The help desk delegation module of M365 Manager Plus with the details of users and built-in technicians who are assigned custom roles to control the tasks and reports in the product.</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-ss7-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h2><span class="hlvl">H2</span>What M365 Manager Plus brings  to your organization</h2>
+<h3><span class="hlvl">H3</span>Enhance protection</h3>
+<p>Safeguard your Microsoft 365 environment with around-the-clock monitoring, real-time alerts, and automated threat responses, ensuring you&#x27;re always one step ahead of evolving security challenges.</p>
+<h3><span class="hlvl">H3</span>Comprehensive administration</h3>
+<p>Achieve peak productivity with a single console for reporting, data-driven management, automation, and monitoring. Free up your team to focus on higher-level goals by automating routine tasks through an intuitive, streamlined interface.</p>
+<h3><span class="hlvl">H3</span>Improved productivity</h3>
+<p>Free your team from juggling multiple admin centers or scripts—our consolidated solution centralizes provisioning, device management, and routine tasks to save you hours every day. Focus on bigger goals while automated backups, scheduled reports, and custom notifications handle the tedious work behind the scenes.</p>
+<h3><span class="hlvl">H3</span>Complete customization</h3>
+<p>Get exactly the data you want with customizable metrics, filters, formats, and scheduled reports—no more guesswork or wasted time. Empower your team with tailored templates, audit alerts, and role-based access for secure, efficient operations that complement your workflows without compromising your security.</p>
+<h2><span class="hlvl">H2</span>Over 280,000 organizations trust ManageEngine</h2>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-clients-25.webp" alt="Logos of organizations that trust ManageEngine" loading="lazy"><figcaption><span class="altline">alt: Logos of organizations that trust ManageEngine</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-clients-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h2><span class="hlvl">H2</span>What our customers  are saying</h2>
+<ul><li>M365 Manager Plus is valuable to our future business, and most importantly, it allows me to keep on improving the level of service we provide. IT infrastructure manager, Sunstar Suisse SA</li><li>We can now effectively reconcile which licenses we are using in the organization and assign the cost to the business unit. We were also able to identify a number of license changes that could be put in place that reduced our total Microsoft 365 spending. Timothy Ransom Group IT/IS manager at The Eclipse Group, United Arab Emirates</li></ul>
+<h2><span class="hlvl">H2</span>M365 Manager Plus is available in 3 editions</h2>
+<p>STANDARD EDITION</p>
+<h5><span class="hlvl">H5</span>Starts at $ 345</h5>
+<p>for 100 user mailboxes</p>
+<ul><li>350+ reports</li><li>Script-free management</li><li>Microsoft 365 automation</li><li>Password expiration notifications</li></ul>
+<p><a href="https://www.manageengine.com/microsoft-365-management-reporting/download.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Try now</a></p>
+<p>PROFESSIONAL EDITION</p>
+<h5><span class="hlvl">H5</span>Starts at $ 595</h5>
+<p>for 100 user mailboxes</p>
+<p>All the features of the Standard edition, plus:</p>
+<ul><li>350+ security audit reports</li><li>Instant Microsoft 365 event alerts</li><li>Mailbox content searches</li><li>Microsoft 365 service monitoring</li></ul>
+<p><a href="https://www.manageengine.com/microsoft-365-management-reporting/download.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Try now</a></p>
+<h3><span class="hlvl">H3</span>Add-ons</h3>
+<ul><li>Help desk technicians</li><li>Exchange Online backups</li></ul>
+<p><a href="https://www.manageengine.com/microsoft-365-management-reporting/pricing-details.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Try now</a></p>
+<h2><span class="hlvl">H2</span>Thanks</h2>
+<p>Thank you for your interest in ManageEngine M365 Manager Plus. We have received your request for a price quote and will contact you shortly.</p>
+<h2><span class="hlvl">H2</span>Get a personalized Quote, that best suits your requirements</h2>
+<ul><li>Add-ons Exchange Online Backup Licensing is based on the number of user mailboxes. (No restrictions on other mailbox types) With this license, you can backup and restore mailboxes, and also export mailboxes to PST format.</li><li>By clicking &#x27; Get Price Quote &#x27;, you agree to processing of personal data according to the <a href="https://www.manageengine.com/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a> .</li></ul>
+<h3><span class="hlvl">H3</span>Free edition Completely free for 25 mailboxes</h3>
+<ul><li>Never expires</li><li>Supports all the features of the Professional edition</li></ul>
+<p><a href="https://www.manageengine.com/microsoft-365-management-reporting/download.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Try now</a></p>
+<figure><img src="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-user-sitting-25.webp" alt="Professional using M365 Manager Plus on a laptop" loading="lazy"><figcaption><span class="altline">alt: Professional using M365 Manager Plus on a laptop</span> &nbsp;&middot;&nbsp; 100%&times;auto &nbsp;&middot;&nbsp; WebP &middot; <a href="https://www.manageengine.com/microsoft-365-management-reporting/images/microsoft-365-management-home-user-sitting-25.webp" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h2><span class="hlvl">H2</span>Schedule a personalized demo with our experts or experience the M365 Manager Plus flow in action for yourself</h2>
+<p><a href="https://www.manageengine.com/microsoft-365-management-reporting/demo.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Schedule a demo</a> <a href="https://demo.m365managerplus.com/webclient/index.html" target="_blank" rel="noopener noreferrer">Launch an instant demo</a></p>
+<h2><span class="hlvl">H2</span>Resources that might help your Microsoft 365 journey</h2>
+<h3><span class="hlvl">H3</span>Data sheet</h3>
+<p>Check out what M365 Manager Plus offers on a technical level for your Microsoft 365 environment and what you need to get started.</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/m365managerplus-datasheet.pdf?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Download now</a>
+<h3><span class="hlvl">H3</span>ROI calculator</h3>
+<p>Discover how much you can save in operational costs by switching your Microsoft 365 administration to M365 Manager Plus.</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-roi-calculator.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Download now</a>
+<h3><span class="hlvl">H3</span>7 best practices to secure your Microsoft 365 environment</h3>
+<p>Learn what types of activities you should monitor, what types of threats to look out for, and what tools you can use to safeguard your Microsoft 365 environment.</p>
+<a class="cta" href="https://download.manageengine.com/microsoft-365-management-reporting/best-practices-for-microsoft-365-security-monitoring.pdf?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Download now</a>
+<h3><span class="hlvl">H3</span>M365 Manager Plus does what the Microsoft 365 admin center can&#x27;t</h3>
+<p>Find out how M365 Manager Plus addresses the drawbacks of both the Microsoft 365 admin center and PowerShell</p>
+<a class="cta" href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-with-manageengine-m365-manager-plus-comparison.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Download now</a>
+<p><a href="https://www.manageengine.com/microsoft-365-management-reporting/documents.html?utm_source=mmp-home-page&amp;utm_medium=in-content-links" target="_blank" rel="noopener noreferrer">Explore</a></p>
+<h2><span class="hlvl">H2</span>Frequently asked questions</h2>
+<h3><span class="hlvl">H3</span>How is ManageEngine M365 Manager Plus different from the Microsoft 365 admin center?</h3>
+<p>While the Microsoft 365 admin center offers basic controls, ManageEngine M365 Manager Plus goes further with over 700 detailed reports, role-based delegation, real-time alerts, Exchange Online backups, and task automation—all from a unified, script-free interface.</p>
+<h3><span class="hlvl">H3</span>Is scripting required to use M365 Manager Plus?</h3>
+<p>No. All tasks in M365 Manager Plus—from user provisioning to policy enforcement—can be done through a user-friendly interface, eliminating the need for PowerShell or Graph API scripting.</p>
+<h3><span class="hlvl">H3</span>Can I automate Microsoft 365 tasks using M365 Manager Plus?</h3>
+<p>Yes. M365 Manager Plus lets you automate tasks across Microsoft 365—like onboarding, license assignment, mailbox setup, and Teams or SharePoint changes—without scripts or tools such as Power Automate. No extra licensing or coding is needed for convenient Microsoft 365 automation.</p>
+<h3><span class="hlvl">H3</span>How does M365 Manager Plus support least privilege delegation in Microsoft 365?</h3>
+<p>M365 Manager Plus enforces least privilege access by letting you delegate only the specific tasks users need—nothing more. With role-based access controls and virtual tenants, you can restrict help desk staff or team leads to exact scopes and actions, ensuring secure, controlled delegation across your Microsoft 365 environment.</p>
+<h3><span class="hlvl">H3</span>How does M365 Manager Plus simplify user and license management?</h3>
+<p>M365 Manager Plus makes bulk user and license management effortless, whether it&#x27;s onboarding users, modifying attributes, or assigning licenses. Unlike the Microsoft 365 admin center, it supports bulk updates through CSV imports, built-in templates, and automation workflows, helping you manage changes quickly without repetitive manual effort.</p>
+<h3><span class="hlvl">H3</span>Does M365 Manager Plus support multi-tenant Microsoft 365 environments?</h3>
+<p>Yes. You can manage multiple Microsoft 365 tenants from a single interface, making M365 Manager Plus ideal for MSPs and large enterprises with distributed environments.</p>
+<h3><span class="hlvl">H3</span>How does M365 Manager Plus handle data privacy and security?</h3>
+<p>M365 Manager Plus is an on-premises solution, meaning all Microsoft 365 data stays within your environment, giving you full control over storage, access, and retention. No data is sent to external servers, making it easier to meet internal security standards and external compliance requirements like HIPAA, SOX, and the GDPR. Built-in audit logs and role-based access controls further help you maintain transparency and enforce least privilege policies.</p>
+<p>A holistic Microsoft 365 administration and security solution</p>
+<p>Highlights Reporting Auditing Management Monitoring Related products</p>
+<ul><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-user-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 User Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-group-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Group Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-mail-traffic-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Mail Traffic Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-reporting-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Mailbox Properties Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk User Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk License Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk Mailbox Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-reporting-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft Teams Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft Teams Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-delegation.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Help Desk Delegation</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Exchange Online Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-active-directory-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Entra ID Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Manage Shared Mailboxes</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Manage Public Folders</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Modify Mailbox Permissions</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-active-directory-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk User Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-active-directory-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk Group Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-active-directory-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk License Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-active-directory-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk Contact Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/azure-active-directory-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Bulk Password Reset</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft Teams Management</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Create &amp; Update Teams</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-management-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Create &amp; Update Team Channels</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-template-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Management Templates</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-automation-and-management.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Automation</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-mail-traffic-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Mailbox Traffic Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-reporting-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Mailbox Permission Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-mailbox-content-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Mailbox Content Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-mailbox-size-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Mailbox Size Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-reporting-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Mailbox Properties Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-user-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 User Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-group-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Group Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-contact-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Contact Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-license-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 License Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-inactive-exchange-users-report.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Inactive Users Report</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-reporting-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">General Team Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-teams-reporting-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Team Usage Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-mobile-devices-report.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">ActiveSync/Mobile Device Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/onedrive-for-business-file-auditing-reporting.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">OneDrive for Business Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-security-and-compliance-reports.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Security &amp; Compliance Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Auditing</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Mailbox Logon Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Mailbox Permission Changes Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Mailbox Property Changes Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Public Folders Changes Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/exchange-online-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Spam and Malware Detection</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 License Changes Activities</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Password Changes Activities</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">User Logon/Logoff Activities</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Entra ID Admin Role Changes</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">OneDrive File Folder Changes Activities</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">OneDrive Sync Changes Activities</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">DLP Compliance Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-auditing-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">EOP Compliance Reports</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Monitoring</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Viva Engage Monitoring</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Sway Monitoring</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Service Health Monitoring</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Entra ID Monitoring</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Exchange Online Monitoring</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-management-reporting/microsoft-365-monitoring-tool.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft Teams Monitoring</a></li><li>» <a href="https://www.manageengine.com/products/ad-manager/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Active Directory Management &amp; Reporting</a></li><li>» <a href="https://www.manageengine.com/products/eventlog/?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Real-time Log Analysis and Reporting Solution</a></li><li>» <a href="https://www.manageengine.com/microsoft-365-security-protection/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Auditing and Alerting Tool</a></li><li>» <a href="https://www.manageengine.com/products/free-windows-active-directory-tools/free-active-directory-tools-index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Active Directory FREE Tools</a></li><li>» <a href="https://www.manageengine.com/products/active-directory-audit/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Active Directory Auditing</a></li><li>» <a href="https://www.manageengine.com/products/exchange-reports/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Exchange Server Auditing &amp; Reporting</a></li><li>» <a href="https://www.manageengine.com/ad-recovery-manager/?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Active Directory Backup &amp; Recovery Tool</a></li><li>» <a href="https://www.manageengine.com/active-directory-360/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Integrated Identity &amp; Access Management (AD360)</a></li><li>» <a href="https://www.manageengine.com/products/self-service-password/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Identity security with MFA, SSO, and SSPR</a></li><li>» <a href="https://www.manageengine.com/data-security/?src=mmp-related-products" target="_blank" rel="noopener noreferrer">File server auditing &amp; data discovery</a></li><li>» <a href="https://www.manageengine.com/sharepoint-management-reporting/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">SharePoint Management and Auditing Solution</a></li><li>» <a href="https://www.manageengine.com/log-management/index.html?src=mmp-related-products" target="_blank" rel="noopener noreferrer">Comprehensive threat mitigation &amp; SIEM (Log360)</a></li><li><a href="https://www.manageengine.com/microsoft-365-management-reporting/download.html?btmMenu" target="_blank" rel="noopener noreferrer">Download</a></li><li><a href="https://demo.microsoft365managerplus.com/webclient/index.html?btmMenu" target="_blank" rel="noopener noreferrer">Live Demo</a></li><li><a href="https://www.manageengine.com/microsoft-365-management-reporting/download-free.html?btmMenu" target="_blank" rel="noopener noreferrer">Free Edition</a></li><li><a href="https://www.manageengine.com/microsoft-365-management-reporting/get-quote.html?btmMenu" target="_blank" rel="noopener noreferrer">Get Quote</a></li><li><a href="https://store.manageengine.com/microsoft-365-management-reporting?btmMenu" target="_blank" rel="noopener noreferrer">Buy Now</a></li></ul></article>
+<a class="totop" href="#top">&uarr; Back to top</a>
+</section>
+<p class="foot">Generated by URL Scraper</p></div>
+<script>
+(function(){
+  var body = document.body;
+  // invert=true -> the class is applied when the box is UNchecked.
+  function bind(id, cls, invert){
+    var el = document.getElementById(id);
+    if(!el) return;
+    function apply(){ body.classList.toggle(cls, invert ? !el.checked : el.checked); }
+    apply();
+    el.addEventListener('change', apply);
+  }
+  bind('t-levels', 'show-levels', false);
+  bind('t-images', 'no-images', true);
+
+  // Flag images that fail to load so the caption still carries the alt text.
+  Array.prototype.forEach.call(document.images, function(img){
+    img.addEventListener('error', function(){
+      img.style.display = 'none';
+      var cap = img.parentNode.querySelector('figcaption');
+      if (cap) cap.classList.add('img-broken');
+    });
+  });
+})();
+</script>
+</body></html>

@@ -1,0 +1,12 @@
+# URLs published to the GitHub Pages site, one per line.
+# Blank lines and lines starting with # are ignored.
+# Labels and bullets are tolerated: "page: https://..." works.
+#
+# Edit this file and push — the Scrape and publish Action rebuilds the site.
+# To scrape something ad hoc without editing this file, run the Action manually
+# and paste URLs into the "urls" input.
+
+https://www.manageengine.com/microsoft-365-management-reporting/
+https://www.manageengine.com/data-security/
+https://www.manageengine.com/data-security/what-is/insider-threat.html
+https://www.manageengine.com/data-security/file-audit/file-server-auditing.html

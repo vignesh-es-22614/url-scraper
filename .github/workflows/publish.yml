@@ -1,0 +1,60 @@
+name: Scrape and publish
+
+on:
+  # Run it by hand from the Actions tab; paste URLs to scrape something ad hoc.
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "URLs to scrape, one per line (leave empty to use urls.txt)"
+        required: false
+        type: string
+  # Rebuild when the URL list or the scraper itself changes.
+  push:
+    branches: [main]
+    paths:
+      - "urls.txt"
+      - "build_site.py"
+      - "url_scraper.py"
+      - ".github/workflows/publish.yml"
+  # Weekly refresh so the published content does not go stale.
+  schedule:
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Scrape and build docs/
+        env:
+          SCRAPE_URLS: ${{ github.event.inputs.urls }}
+          SCRAPE_TIMEOUT: "30"
+          SCRAPE_WORKERS: "4"
+        run: python build_site.py
+
+      - name: Commit the rebuilt site
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if git diff --staged --quiet; then
+            echo "No content changes."
+          else
+            git commit -m "Refresh scraped content"
+            git push
+          fi

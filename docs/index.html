@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>URL Scraper</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#1a1d21; --muted:#6b7280; --line:#e3e6ea;
+  --blue:#1b4f8a; --blue-lt:#2f6fb8; --green:#166534; --amber:#92400e;
+  --amber-bg:#fef3c7; --code-bg:#f2f4f7; --mark:#eef4fb;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#14171a; --card:#1c2025; --ink:#e7e9ec; --muted:#9aa3ad; --line:#2c323a;
+    --blue:#7fb2e8; --blue-lt:#9cc6f2; --green:#6ee7a8; --amber:#fbbf24;
+    --amber-bg:#3b2f12; --code-bg:#22272e; --mark:#1f2732;
+  }
+}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--blue-lt)}
+a:hover{color:var(--blue)}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px 80px}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:10;background:var(--card);
+  border-bottom:1px solid var(--line);padding:12px 20px}
+.topbar .inner{max-width:860px;margin:0 auto;display:flex;align-items:center;
+  gap:14px;flex-wrap:wrap}
+.topbar h1{margin:0;font-size:1rem;font-weight:700}
+.topbar .sub{color:var(--muted);font-size:.78rem}
+.tools{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}
+.tools label{font-size:.78rem;color:var(--muted);cursor:pointer;user-select:none;
+  display:inline-flex;align-items:center;gap:5px}
+
+/* table of contents */
+.toc{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:22px 0}
+.toc h2{margin:0 0 8px;font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted)}
+.toc ol{margin:0;padding-left:20px}
+.toc li{margin:4px 0;font-size:.9rem}
+
+/* page section */
+.page{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  margin:22px 0;overflow:hidden}
+.pg-head{padding:20px 24px;border-bottom:1px solid var(--line);background:var(--mark)}
+.pg-num{font-size:.72rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.pg-head h2{margin:4px 0 6px;font-size:1.3rem;line-height:1.35}
+.src{font-size:.83rem;word-break:break-all}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:.72rem;padding:3px 9px;border-radius:20px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.crumb{margin-top:10px;font-size:.78rem;color:var(--muted)}
+.desc{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+
+/* metadata drawer */
+.meta{border-bottom:1px solid var(--line)}
+.meta>summary{cursor:pointer;padding:11px 24px;font-size:.82rem;
+  font-weight:600;color:var(--muted)}
+.meta>summary:hover{color:var(--ink)}
+.meta .body{padding:4px 24px 18px}
+.meta table{width:100%;border-collapse:collapse;font-size:.8rem}
+.meta td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.meta td:first-child{width:180px;color:var(--muted);font-weight:600}
+
+/* article content */
+.content{padding:10px 24px 28px}
+.content h1,.content h2,.content h3,
+.content h4,.content h5,.content h6{line-height:1.3;margin:1.5em 0 .5em}
+.content h1{font-size:1.6rem}
+.content h2{font-size:1.32rem}
+.content h3{font-size:1.12rem}
+.content h4,.content h5,.content h6{font-size:1rem}
+.content p{margin:0 0 1em}
+.content ul{margin:0 0 1em;padding-left:24px}
+.content li{margin:.3em 0}
+.content blockquote{margin:0 0 1em;padding:2px 0 2px 16px;
+  border-left:3px solid var(--line);color:var(--muted)}
+.content code{background:var(--code-bg);padding:1px 5px;border-radius:4px;
+  font-size:.88em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.content pre{background:var(--code-bg);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;overflow-x:auto;margin:0 0 1em}
+.content pre code{background:none;padding:0;font-size:.84rem;line-height:1.55}
+.hlvl{display:none;font-size:.6em;font-weight:700;vertical-align:middle;
+  margin-right:8px;padding:2px 6px;border-radius:4px;
+  background:var(--mark);border:1px solid var(--line);color:var(--muted)}
+body.show-levels .hlvl{display:inline-block}
+.faq-q{font-weight:700;margin:1.2em 0 .4em!important}
+.faq-q::before{content:"Q: ";color:var(--muted)}
+.cta{display:inline-block;margin:0 8px 1em 0;padding:8px 16px;border-radius:7px;
+  background:var(--blue);color:#fff!important;font-size:.85rem;font-weight:600;
+  text-decoration:none}
+.cta:hover{background:var(--blue-lt);color:#fff!important}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin:0 0 1.2em}
+.content table{border-collapse:collapse;width:100%;font-size:.86rem}
+.content th,.content td{border:1px solid var(--line);padding:7px 10px;
+  text-align:left;vertical-align:top}
+.content th{background:var(--mark);font-weight:700}
+
+/* images */
+figure{margin:0 0 1.4em}
+figure img{max-width:100%;height:auto;display:block;border-radius:8px;
+  border:1px solid var(--line);background:var(--mark)}
+figcaption{font-size:.76rem;color:var(--muted);margin-top:6px;word-break:break-word}
+figcaption .altline{color:var(--ink)}
+body.no-images figure img{display:none}
+.img-broken{font-size:.78rem;color:var(--amber);background:var(--amber-bg);
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+
+/* errors + footer */
+.err{margin:0;padding:20px 24px;color:var(--amber);background:var(--amber-bg);
+  font-size:.9rem}
+.totop{display:block;padding:10px 24px;font-size:.75rem;color:var(--muted);
+  border-top:1px solid var(--line);text-decoration:none}
+.totop:hover{color:var(--blue)}
+.foot{text-align:center;color:var(--muted);font-size:.75rem;margin-top:26px}
+
+@media print{
+  .topbar,.tools,.totop,.toc{display:none}
+  body{background:#fff}
+  .page{border:none;margin:0 0 24px;page-break-inside:avoid}
+  .meta[open]>summary{display:none}
+}
+
+.idx{max-width:960px;margin:0 auto;padding:28px 20px 80px}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 20px;min-width:120px}
+.card .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.card .v{font-size:1.5rem;font-weight:700;margin-top:2px}
+table.list{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+table.list th{background:var(--mark);text-align:left;padding:10px 14px;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+table.list td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top;font-size:.88rem}
+table.list td:nth-child(2),table.list td:nth-child(3),table.list th:nth-child(2),table.list th:nth-child(3){text-align:right;white-space:nowrap;width:90px}
+.t{display:block;font-weight:600;margin-bottom:3px}
+.u{display:block;font-size:.76rem;color:var(--muted);word-break:break-all}
+.err{color:var(--amber)}
+tr.failed .t{color:var(--muted)}
+.dl{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 0}
+.dl a{display:inline-block;padding:8px 16px;border-radius:7px;background:var(--card);border:1px solid var(--line);text-decoration:none;font-size:.85rem;font-weight:600}
+</style>
+</head>
+<body id="top"><div class="topbar"><div class="inner"><div><h1>URL Scraper</h1><div class="sub">4 pages &middot; rebuilt 16 Sep 2026, 13:02 UTC</div></div></div></div>
+<div class="idx">
+<div class="cards"><div class="card"><div class="k">Pages</div><div class="v">4</div></div><div class="card"><div class="k">Scraped</div><div class="v">4</div></div><div class="card"><div class="k">Words</div><div class="v">8,460</div></div></div>
+<table class="list"><thead><tr><th>Page</th><th>Words</th><th>Images</th></tr></thead><tbody><tr><td><a class="t" href="pages/manageengine-com-microsoft-365-management-reporting.html">M365 management and reporting tool - ManageEngine M365 Manager Plus</a><a class="u" href="https://www.manageengine.com/microsoft-365-management-reporting/">https://www.manageengine.com/microsoft-365-management-reporting/</a></td><td>2,016</td><td>13</td></tr><tr><td><a class="t" href="pages/manageengine-com-data-security.html">ManageEngine DataSecurity Plus | Data visibility and security solution</a><a class="u" href="https://www.manageengine.com/data-security/">https://www.manageengine.com/data-security/</a></td><td>2,407</td><td>4</td></tr><tr><td><a class="t" href="pages/manageengine-com-data-security-what-is-insider-threat.html">What Is An Insider Threat | ManageEngine DataSecurity Plus</a><a class="u" href="https://www.manageengine.com/data-security/what-is/insider-threat.html">https://www.manageengine.com/data-security/what-is/insider-threat.html</a></td><td>2,293</td><td>1</td></tr><tr><td><a class="t" href="pages/manageengine-com-data-security-file-audit-file-server-auditing.html">File server auditing software| ManageEngine DataSecurity Plus</a><a class="u" href="https://www.manageengine.com/data-security/file-audit/file-server-auditing.html">https://www.manageengine.com/data-security/file-audit/file-server-auditing.html</a></td><td>1,744</td><td>7</td></tr></tbody></table>
+<div class="dl"><a href="report.md">SEO report (.md)</a><a href="scraped.docx">Word export (.docx)</a></div>
+<p class="foot">Built by the Scrape and publish Action from urls.txt</p>
+</div></body></html>

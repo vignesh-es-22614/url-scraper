@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>File server auditing software| ManageEngine DataSecurity Plus</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#1a1d21; --muted:#6b7280; --line:#e3e6ea;
+  --blue:#1b4f8a; --blue-lt:#2f6fb8; --green:#166534; --amber:#92400e;
+  --amber-bg:#fef3c7; --code-bg:#f2f4f7; --mark:#eef4fb;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#14171a; --card:#1c2025; --ink:#e7e9ec; --muted:#9aa3ad; --line:#2c323a;
+    --blue:#7fb2e8; --blue-lt:#9cc6f2; --green:#6ee7a8; --amber:#fbbf24;
+    --amber-bg:#3b2f12; --code-bg:#22272e; --mark:#1f2732;
+  }
+}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--blue-lt)}
+a:hover{color:var(--blue)}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px 80px}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:10;background:var(--card);
+  border-bottom:1px solid var(--line);padding:12px 20px}
+.topbar .inner{max-width:860px;margin:0 auto;display:flex;align-items:center;
+  gap:14px;flex-wrap:wrap}
+.topbar h1{margin:0;font-size:1rem;font-weight:700}
+.topbar .sub{color:var(--muted);font-size:.78rem}
+.tools{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}
+.tools label{font-size:.78rem;color:var(--muted);cursor:pointer;user-select:none;
+  display:inline-flex;align-items:center;gap:5px}
+
+/* table of contents */
+.toc{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:22px 0}
+.toc h2{margin:0 0 8px;font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted)}
+.toc ol{margin:0;padding-left:20px}
+.toc li{margin:4px 0;font-size:.9rem}
+
+/* page section */
+.page{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  margin:22px 0;overflow:hidden}
+.pg-head{padding:20px 24px;border-bottom:1px solid var(--line);background:var(--mark)}
+.pg-num{font-size:.72rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.pg-head h2{margin:4px 0 6px;font-size:1.3rem;line-height:1.35}
+.src{font-size:.83rem;word-break:break-all}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:.72rem;padding:3px 9px;border-radius:20px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.crumb{margin-top:10px;font-size:.78rem;color:var(--muted)}
+.desc{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+
+/* metadata drawer */
+.meta{border-bottom:1px solid var(--line)}
+.meta>summary{cursor:pointer;padding:11px 24px;font-size:.82rem;
+  font-weight:600;color:var(--muted)}
+.meta>summary:hover{color:var(--ink)}
+.meta .body{padding:4px 24px 18px}
+.meta table{width:100%;border-collapse:collapse;font-size:.8rem}
+.meta td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.meta td:first-child{width:180px;color:var(--muted);font-weight:600}
+
+/* article content */
+.content{padding:10px 24px 28px}
+.content h1,.content h2,.content h3,
+.content h4,.content h5,.content h6{line-height:1.3;margin:1.5em 0 .5em}
+.content h1{font-size:1.6rem}
+.content h2{font-size:1.32rem}
+.content h3{font-size:1.12rem}
+.content h4,.content h5,.content h6{font-size:1rem}
+.content p{margin:0 0 1em}
+.content ul{margin:0 0 1em;padding-left:24px}
+.content li{margin:.3em 0}
+.content blockquote{margin:0 0 1em;padding:2px 0 2px 16px;
+  border-left:3px solid var(--line);color:var(--muted)}
+.content code{background:var(--code-bg);padding:1px 5px;border-radius:4px;
+  font-size:.88em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.content pre{background:var(--code-bg);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;overflow-x:auto;margin:0 0 1em}
+.content pre code{background:none;padding:0;font-size:.84rem;line-height:1.55}
+.hlvl{display:none;font-size:.6em;font-weight:700;vertical-align:middle;
+  margin-right:8px;padding:2px 6px;border-radius:4px;
+  background:var(--mark);border:1px solid var(--line);color:var(--muted)}
+body.show-levels .hlvl{display:inline-block}
+.faq-q{font-weight:700;margin:1.2em 0 .4em!important}
+.faq-q::before{content:"Q: ";color:var(--muted)}
+.cta{display:inline-block;margin:0 8px 1em 0;padding:8px 16px;border-radius:7px;
+  background:var(--blue);color:#fff!important;font-size:.85rem;font-weight:600;
+  text-decoration:none}
+.cta:hover{background:var(--blue-lt);color:#fff!important}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin:0 0 1.2em}
+.content table{border-collapse:collapse;width:100%;font-size:.86rem}
+.content th,.content td{border:1px solid var(--line);padding:7px 10px;
+  text-align:left;vertical-align:top}
+.content th{background:var(--mark);font-weight:700}
+
+/* images */
+figure{margin:0 0 1.4em}
+figure img{max-width:100%;height:auto;display:block;border-radius:8px;
+  border:1px solid var(--line);background:var(--mark)}
+figcaption{font-size:.76rem;color:var(--muted);margin-top:6px;word-break:break-word}
+figcaption .altline{color:var(--ink)}
+body.no-images figure img{display:none}
+.img-broken{font-size:.78rem;color:var(--amber);background:var(--amber-bg);
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+
+/* errors + footer */
+.err{margin:0;padding:20px 24px;color:var(--amber);background:var(--amber-bg);
+  font-size:.9rem}
+.totop{display:block;padding:10px 24px;font-size:.75rem;color:var(--muted);
+  border-top:1px solid var(--line);text-decoration:none}
+.totop:hover{color:var(--blue)}
+.foot{text-align:center;color:var(--muted);font-size:.75rem;margin-top:26px}
+
+@media print{
+  .topbar,.tools,.totop,.toc{display:none}
+  body{background:#fff}
+  .page{border:none;margin:0 0 24px;page-break-inside:avoid}
+  .meta[open]>summary{display:none}
+}
+</style>
+</head>
+<body id="top">
+<div class="topbar"><div class="inner"><div><h1>File server auditing software| ManageEngine DataSecurity Plus</h1><div class="sub">1 page &middot; 1 scraped &middot; 16 Sep 2026, 18:32</div></div><div class="tools"><label><input type="checkbox" id="t-images" checked> Images</label><label><input type="checkbox" id="t-levels"> Heading tags</label></div></div></div>
+<div class="wrap">
+<section class="page" id="p1">
+<div class="pg-head">
+<div class="pg-num">URL 1</div>
+<h2>File server auditing software| ManageEngine DataSecurity Plus</h2>
+<a class="src" href="https://www.manageengine.com/data-security/file-audit/file-server-auditing.html" target="_blank" rel="noopener noreferrer">https://www.manageengine.com/data-security/file-audit/file-server-auditing.html</a>
+<div class="chips"><span class="chip">www.manageengine.com</span><span class="chip">HTTP 200</span><span class="chip">Lang: en</span><span class="chip">1,744 words</span><span class="chip">7 images</span><span class="chip">107 links (105 int / 2 ext)</span></div>
+<div class="crumb"><a href="https://www.manageengine.com/data-security/" target="_blank" rel="noopener noreferrer">Home</a></div>
+<p class="desc">Track, audit, alert, and report on all file accesses, changes and permissions on your file server using DataSecurity Plus&#x27; real-time Windows file audit solution.</p>
+</div>
+<details class="meta"><summary>Metadata &amp; meta tags (30)</summary><div class="body"><table><tbody><tr><td>Final URL</td><td>https://www.manageengine.com/data-security/file-audit/file-server-auditing.html</td></tr><tr><td>Domain</td><td>www.manageengine.com</td></tr><tr><td>Status</td><td>200</td></tr><tr><td>Language</td><td>en</td></tr><tr><td>Canonical</td><td>https://www.manageengine.com/data-security/file-audit/file-server-auditing.html</td></tr><tr><td>Description</td><td>Track, audit, alert, and report on all file accesses, changes and permissions on your file server using DataSecurity Plus&#x27; real-time Windows file audit solution.</td></tr><tr><td>Keywords</td><td>file server auditing, Audit File changes, web based File Server Audit, Real time File Audit, Real time Change Audit, file auditing software, File Audit, Real time File Server Change Reports, Security and Compliance Auditing, Windows File Server Audit, Real Time File Server Alerts, file changes auditor, audit file server infrastructure, Windows file server auditing</td></tr><tr><td>Author</td><td>ManageEngine, communications@manageengine.com</td></tr><tr><td>description</td><td>Track, audit, alert, and report on all file accesses, changes and permissions on your file server using DataSecurity Plus&#x27; real-time Windows file audit solution.</td></tr><tr><td>keywords</td><td>file server auditing, Audit File changes, web based File Server Audit, Real time File Audit, Real time Change Audit, file auditing software, File Audit, Real time File Server Change Reports, Security and Compliance Auditing, Windows File Server Audit, Real Time File Server Alerts, file changes auditor, audit file server infrastructure, Windows file server auditing</td></tr><tr><td>og:title</td><td>Data visibility and security solution by ManageEngine DataSecurity Plus</td></tr><tr><td>og:description</td><td>Data visibility and security solution by ManageEngine DataSecurity Plus!</td></tr><tr><td>og:type</td><td>website</td></tr><tr><td>og:url</td><td>https://www.manageengine.com/data-security/</td></tr><tr><td>og:image</td><td>https://www.manageengine.com/data-security/images/logo.png</td></tr><tr><td>og:site_name</td><td>ManageEngine DataSecurity Plus</td></tr><tr><td>twitter:card</td><td>summary_large_image</td></tr><tr><td>twitter:site</td><td>@ME_ADSolutions</td></tr><tr><td>twitter:title</td><td>Data visibility and security solution by ManageEngine DataSecurity Plus</td></tr><tr><td>twitter:description</td><td>Data visibility and security solution by ManageEngine DataSecurity Plus!</td></tr><tr><td>twitter:image:src</td><td>https://www.manageengine.com/data-security/images/logo.png</td></tr><tr><td>twitter:domain</td><td>datasecurityplus.com</td></tr><tr><td>viewport</td><td>width=device-width, initial-scale=1</td></tr><tr><td>X-UA-Compatible</td><td>IE=edge,chrome=1</td></tr><tr><td>author</td><td>ManageEngine, communications@manageengine.com</td></tr><tr><td>distribution</td><td>Global</td></tr><tr><td>HandheldFriendly</td><td>True</td></tr><tr><td>MobileOptimized</td><td>320</td></tr><tr><td>apple-touch-fullscreen</td><td>yes</td></tr><tr><td>apple-mobile-web-app-capable</td><td>yes</td></tr></tbody></table></div></details>
+<article class="content"><h1><span class="hlvl">H1</span>File server auditing  with DataSecurity Plus</h1>
+<p>Seamlessly monitor, alert, and report on all file accesses and modifications made across Windows file servers, failover clusters, workgroups, and NAS servers.</p>
+<h2><span class="hlvl">H2</span>Security starts with knowing who does what.</h2>
+<ul><li>Audit file and folder accesses</li><li>Detect ransomware attacks</li><li>Monitor file integrity</li><li>Receive instant file change alerts</li><li>Track file security permission changes</li><li>Comply with regulatory mandates</li></ul>
+<h3><span class="hlvl">H3</span>Audit file and folder accesses</h3>
+<ul><li>Monitor and report on a wide range of file activities including create, delete, modify, overwrite, rename, move, read, etc. in real time.</li><li>Track and record a complete audit trail of all files copied by auditing your clipboard for Ctr+C and right-click copy actions.</li><li>Audit and analyze both successful and failed file access attempts made by your employees to prevent future security issues.</li><li>Maintain a detailed record of all file activities, along with details on who accessed what, when, and where.</li><li>Analyze audit data to identify your organization&#x27;s most active user, most accessed file, process used to access most files, and more.</li></ul>
+<p><a href="https://www.manageengine.com/data-security/file-audit/file-access-auditing-software.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">More on auditing file and folder accesses.</a></p>
+<h3><span class="hlvl">H3</span>Detect and quarantine ransomware attacks</h3>
+<ul><li>Spot ransomware attacks quickly using telltale indicators such as sudden surges in file rename, move, and permission change activities.</li><li>Notify admins and other stakeholders instantly via email as soon as the potential ransomware attack takes root.</li><li>Use an automated incident response system to shut down the infected device, disable or disconnect the rogue user&#x27;s session, and more.</li><li>Use our actionable, accurate audit data to conduct a root cause analysis to identify patient zero and how the infection spread.</li><li>Locate ransomware-corrupted files using our prebuilt, up-to-date library of known ransomware file types to protect your organization&#x27;s critical data.</li></ul>
+<p><a href="https://www.manageengine.com/data-security/file-audit/best-ransomware-detection-software.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">More on detecting ransomware attacks.</a></p>
+<h3><span class="hlvl">H3</span>Monitor file integrity to detect potential threats</h3>
+<ul><li>Generate instant email notifications when there is a sudden spike in failed attempts to modify or delete business-critical files.</li><li>Spot privilege abuse early on by tracking frequent permission changes, SACL changes, owner changes, and more.</li><li>Stay aware of indicators of compromise, such as a file activity during non-business hours, and more.</li><li>Identify the root cause of critical security events using detailed forensic data, and generate clear and concise audit records.</li><li>Selectively monitor and scrutinize the file activities of untrustworthy users and groups for unwarranted activities.</li></ul>
+<p><a href="https://www.manageengine.com/data-security/file-audit/file-integrity-monitoring-solution.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">More on monitoring file integrity.</a></p>
+<h3><span class="hlvl">H3</span>Get instant file change notifications</h3>
+<ul><li>Trigger instant email alerts on observing anomalous changes, like when an unusual volume of files are deleted, overwritten, or moved.</li><li>Spot malware intrusions by looking out for a sudden spike in file modifications in a short period, and trigger instant threat response mechanisms.</li><li>Create and manage custom alerts to spot organization-specific issues like hoarding of media or large files.</li><li>Categorize and analyze alert data based on its severity, i.e., attention, trouble, and critical.</li><li>Actively monitor your file servers for signs of compromise, such as multiple permission changes, file extension modifications, etc.</li></ul>
+<p><a href="https://www.manageengine.com/data-security/file-audit/file-change-notification.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">More on receiving instant file change alerts.</a></p>
+<h3><span class="hlvl">H3</span>Track file security permission changes</h3>
+<ul><li>Monitor every file permission change, whether added, removed, or modified, along with details on who performed each action, the time it occurred, and where it originated from.</li><li>Identify instances where users or groups are granted or denied access by reviewing detailed audit reports.</li><li>Spot instances of unauthorized access or privilege escalation and trigger instant responses, such as shutting down systems or deactivating user accounts.</li><li>Detect changes made to file ownership, effective permissions, SACLs, and more using customized reports.</li><li>Schedule reports for business-critical files, receive them directly via email, and analyze usage patterns to detect trends or suspicious behavior.</li></ul>
+<p><a href="https://www.manageengine.com/data-security/file-audit/ntfs-permissions-audit.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">More on auditing file security permissions</a></p>
+<h3><span class="hlvl">H3</span>Comply with regulatory mandates.</h3>
+<ul><li>Address critical requirements of PCI DSS and HIPAA regulations using our file server auditing tool.</li><li>Identify the root cause of security incidents using accurate forensic data, and generate clear and concise audit records.</li><li>Generate and archive audit trails to ensure accountability for all file activity.</li></ul>
+<p><a href="https://www.manageengine.com/data-security/compliance/compliance-software.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">More on complying with regulatory mandates.</a></p>
+<h2><span class="hlvl">H2</span>Everything you need for data visibility.</h2>
+<p>DataSecurity Plus&#x27; file server auditing software offers you clear visibility over every file access and  modification made by users within your file server environment.</p>
+<ul><li>Track file and folder accesses</li><li>Monitor file integrity</li><li>Receive real-time file change alerts</li><li>Quarantine malware</li><li>Comply with regulatory mandates.</li></ul>
+<h5><span class="hlvl">H5</span>Get the big picture.</h5>
+<p>Use the one-stop operational dashboard for a quick overview of recent file and folder access types. Use custom filters to analyze and investigate any sudden changes in access trends.</p>
+<h5><span class="hlvl">H5</span>Warning signs to look out for.</h5>
+<p>Selectively filter and monitor high-risk access types, such as file extension changes, renaming, deletions, permission changes, and file activities made during non-business hours.</p>
+<figure><img src="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-auditing-solution.jpg" alt="file-server-auditing-solution" loading="lazy"><figcaption><span class="altline">alt: file-server-auditing-solution</span> &nbsp;&middot;&nbsp; 100%&times;100% &nbsp;&middot;&nbsp; JPG &middot; <a href="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-auditing-solution.jpg" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<h5><span class="hlvl">H5</span>Stay on top of changes.</h5>
+<p>Intentional or unintentional—track file deletions, moves, and permission changes. Reverse file name changes as required after comparing original and altered file names.</p>
+<figure><img src="https://www.manageengine.com/data-security/file-audit-lp/images/windows-file-auditing.jpg" alt="file-server-auditor" loading="lazy"><figcaption><span class="altline">alt: file-server-auditor</span> &nbsp;&middot;&nbsp; 100%&times;100% &nbsp;&middot;&nbsp; JPG &middot; <a href="https://www.manageengine.com/data-security/file-audit-lp/images/windows-file-auditing.jpg" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<p>1.Stay on top of changes: Intentional or unintentional—track file deletions, moves, and permission changes. Reverse file name changes as required after comparing original and altered file names.</p>
+<h5><span class="hlvl">H5</span>Choose your area of focus.</h5>
+<p>Generate alerts selectively by focusing on suspicious users or critical actions such as owner changes, permission changes, file deletions, or renaming events. Analyze events based on their severity and obtain detailed reports for each event.</p>
+<figure><img src="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-auditing.jpg" alt="windows-file-auditing" loading="lazy"><figcaption><span class="altline">alt: windows-file-auditing</span> &nbsp;&middot;&nbsp; 100%&times;100% &nbsp;&middot;&nbsp; JPG &middot; <a href="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-auditing.jpg" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<p>1.Choose your area of focus: Generate alerts selectively by focusing on suspicious users or critical actions such as owner changes, permission changes, file deletions, or renaming events. Analyze events based on their severity and obtain detailed reports for each event.</p>
+<h5><span class="hlvl">H5</span>Track malware in real time.</h5>
+<p>Speed up your incident detection with instant email notifications for malware attacks, especially ransomware, by detecting sudden spikes in file renaming and modification events.</p>
+<h5><span class="hlvl">H5</span>Quarantine ransomware.</h5>
+<p>Stop a ransomware infection within seconds by promptly shutting down an infected machine. Execute custom scripts to perform actions tailored to your organization&#x27;s needs (e.g. disconnect the user session or lock the user account).</p>
+<figure><img src="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-auditor.jpg" alt="file-server-auditing" loading="lazy"><figcaption><span class="altline">alt: file-server-auditing</span> &nbsp;&middot;&nbsp; 100%&times;100% &nbsp;&middot;&nbsp; JPG &middot; <a href="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-auditor.jpg" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<p>1.Track malware in real time: Speed up your incident detection with instant email notifications for malware attacks, especially ransomware, by detecting sudden spikes in file renaming and modification events.</p>
+<p>2.Quarantine ransomware: Stop a ransomware infection within seconds by promptly shutting down an infected machine. Execute custom scripts to perform actions tailored to your organization&#x27;s needs (e.g. disconnect the user session or lock the user account).</p>
+<h5><span class="hlvl">H5</span>Maintain an easy audit trail</h5>
+<p>Generate reports at regular intervals to ensure consistent records are available to demonstrate compliance.</p>
+<h5><span class="hlvl">H5</span>Restore and analyze archived events</h5>
+<p>Archive old data to conserve storage space and easily retrieve it later for analysis, forensic investigations, or to present it to auditors and compliance teams.</p>
+<figure><img src="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-reporting-tool.jpg" alt="file-server-reporting-tool" loading="lazy"><figcaption><span class="altline">alt: file-server-reporting-tool</span> &nbsp;&middot;&nbsp; 100%&times;100% &nbsp;&middot;&nbsp; JPG &middot; <a href="https://www.manageengine.com/data-security/file-audit-lp/images/file-server-reporting-tool.jpg" target="_blank" rel="noopener noreferrer">source</a></figcaption></figure>
+<p>1.Maintain an easy audit trail Generate reports at regular intervals to ensure consistent records are available to demonstrate compliance.</p>
+<p>2.Restore and analyze archived events Archive old data to conserve storage space and easily retrieve it later for analysis, forensic investigations, or to present it to auditors and compliance teams.</p>
+<h2><span class="hlvl">H2</span>Get a personalized quote for our file server auditing software.</h2>
+<p>Data Source</p>
+<p>Your requirements</p>
+<p>Data Source</p>
+<p>Please fill your requirements</p>
+<p>Annual plans starting at</p>
+<p>Windows</p>
+<p>Windows</p>
+<p>Your requirements</p>
+<p>File servers</p>
+<p>$745 for 2 file servers</p>
+<p>NetApp</p>
+<p>NetApp</p>
+<p>Your requirements</p>
+<p>CIFS servers</p>
+<p>$595 for 1 CIFS server</p>
+<p>Nutanix</p>
+<p>Nutanix</p>
+<p>Your requirements</p>
+<p>CIFS servers</p>
+<p>$595 for 1 CIFS server</p>
+<p>Send me the quote to</p>
+<p>I&#x27;m from</p>
+<p>By clicking &#x27; Get Personalized quote &#x27; you agree to processing of personal data according to the <a href="https://www.manageengine.com/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a> .</p>
+<p>Thanks! One of our solution experts will get in touch with you shortly.</p>
+<h2><span class="hlvl">H2</span>With DataSecurity Plus&#x27; file server auditing tool, you can:</h2>
+<ul><li>01 Audit all file activities with details on who accessed what, when, and from where.</li><li>02 Track critical file changes, such as those to SACLs, owners, file extensions, and permissions.</li><li>03 Use default Alert Profiles to detect high-risk file changes and spikes in access attempts.</li><li>04 Detect and stop ransomware attacks using instant threat  responses.</li><li>05 Monitor file integrity with instant e-notifications.</li><li>06 Generate analytics on the most accessed or modified files, most active users, etc.</li><li>07 Scrutinize failed attempts to access files containing business information.</li><li>08 Find irrelevant and personal media files hoarded by employees in enterprise storage.</li><li>09 Use the interactive dashboard to compare file changes at the global and server levels.</li><li>10 Maintain a record of file copy and paste activities.</li></ul>
+<h2><span class="hlvl">H2</span>Other solutions offered by DataSecurity Plus</h2>
+<h3><span class="hlvl">H3</span>Data Leak Prevention</h3>
+<p>Detect, disrupt, and prevent sensitive data leaks via endpoints, i.e., USBs and email.</p>
+<h3><span class="hlvl">H3</span>Data risk assessment</h3>
+<p>Discover sensitive personal data, and classify files based on their level of vulnerability.</p>
+<h3><span class="hlvl">H3</span>File Analysis</h3>
+<p>Analyze file security permissions, optimize disk space usage, and manage junk files.</p>
+<h3><span class="hlvl">H3</span>File server auditing</h3>
+<p>Monitor, analyze, and report on all file server accesses and modifications in real time.</p>
+<h3><span class="hlvl">H3</span>Cloud protection</h3>
+<p>Report on enterprise web traffic, and control the use of web applications.</p>
+<h3><span class="hlvl">H3</span>View more solutions</h3>
+<p>Learn more about the solutions offered by DataSecurity Plus.</p>
+<h2><span class="hlvl">H2</span>Resources you might be interested in</h2>
+<p>15 min read</p>
+<h4><span class="hlvl">H4</span>EBook</h4>
+<p>Perfect your DLP strategy with this detailed guide on developing an effective DLP plan.</p>
+<p><a href="https://www.manageengine.com/data-security/pdf/perfecting-your-dlp-strategy.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">Get your free copy</a></p>
+<ul><li>Best practices 6 best practices to follow while deploying your data loss prevention solution</li><li>How-to How to track files copied to USB drives with DataSecurity Plus</li><li>Datasheet Learn all about DataSecurity Plus&#x27; capabilities with this datasheet.</li></ul>
+<p><a href="https://www.manageengine.com/data-security/resources.html?source=fileserverauditing" target="_blank" rel="noopener noreferrer">View more resources</a></p>
+<h2><span class="hlvl">H2</span>A unified data visibility and security platform</h2>
+<ul><li>Solutions</li><li>Regulatory compliance</li><li>Resources</li><li>Quick links</li><li>Related products</li><li><a href="https://www.manageengine.com/data-security/file-audit/file-access-auditing-software.html?source=fim" target="_blank" rel="noopener noreferrer">File/folder access auditing</a></li><li><a href="https://www.manageengine.com/data-security/file-audit/file-change-monitoring-software.html?source=fim" target="_blank" rel="noopener noreferrer">File change monitoring</a></li><li><a href="https://www.manageengine.com/data-security/file-audit/ransomware-detection-tool.html?source=fim" target="_blank" rel="noopener noreferrer">Ransomware response</a></li><li><a href="https://www.manageengine.com/data-security/cloud-security/cloud-protection.html?source=fim" target="_blank" rel="noopener noreferrer">Cloud Protection</a></li><li><a href="https://www.manageengine.com/data-security/file-audit/file-integrity-monitoring-solution.html?source=fim" target="_blank" rel="noopener noreferrer">File integrity monitoring</a></li><li><a href="https://www.manageengine.com/data-security/data-storage/disk-space-analyzer.html?source=fim" target="_blank" rel="noopener noreferrer">Disk usage analysis</a></li><li><a href="https://www.manageengine.com/data-security/file-analysis/security-permission-analyzer.html?source=fim" target="_blank" rel="noopener noreferrer">Permission analysis</a></li><li><a href="https://www.manageengine.com/data-security/file-analysis/file-analysis-software.html?source=fim" target="_blank" rel="noopener noreferrer">File analysis</a></li><li><a href="https://www.manageengine.com/data-security/data-discovery/data-discovery-tool.html?source=fim" target="_blank" rel="noopener noreferrer">Data discovery</a></li><li><a href="https://www.manageengine.com/data-security/dlp/audit-file-copy.html?source=fim" target="_blank" rel="noopener noreferrer">File copy monitoring</a></li><li><a href="https://www.manageengine.com/data-security/dlp/data-leak-prevention-software.html?source=fim" target="_blank" rel="noopener noreferrer">Data leak prevention</a></li><li><a href="https://www.manageengine.com/data-security/dlp/usb-monitoring-tool.html?source=fim" target="_blank" rel="noopener noreferrer">USB monitoring</a></li><li><a href="https://www.manageengine.com/data-security/compliance/compliance-software.html?source=fim" target="_blank" rel="noopener noreferrer">Compliance auditing</a></li><li><a href="https://www.manageengine.com/data-security/compliance/gdpr-compliance-tool.html?source=fim" target="_blank" rel="noopener noreferrer">GDPR</a></li><li><a href="https://www.manageengine.com/data-security/compliance/hipaa-compliance-tool.html?source=fim" target="_blank" rel="noopener noreferrer">HIPAA</a></li><li><a href="https://www.manageengine.com/data-security/compliance/sox-compliance-tool.html?source=fim" target="_blank" rel="noopener noreferrer">SOX</a></li><li><a href="https://www.manageengine.com/data-security/compliance/fisma-compliance-tool.html?source=fim" target="_blank" rel="noopener noreferrer">FISMA</a></li><li><a href="https://www.manageengine.com/data-security/compliance/pci-dss-compliance-tool.html?source=fim" target="_blank" rel="noopener noreferrer">PCI-DSS</a></li><li><a href="https://www.manageengine.com/data-security/compliance/glba-compliance-tool.html?source=fim" target="_blank" rel="noopener noreferrer">GLBA</a></li><li><a href="https://www.manageengine.com/data-security/compliance/popia-compliance-tool.html?source=fim" target="_blank" rel="noopener noreferrer">POPIA</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=helpdocuments&amp;source=fim" target="_blank" rel="noopener noreferrer">Help documents</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=checklist&amp;source=fim" target="_blank" rel="noopener noreferrer">Checklists</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=webinars&amp;source=fim" target="_blank" rel="noopener noreferrer">Webinars</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=blogs&amp;source=fim" target="_blank" rel="noopener noreferrer">Blogs</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=casestudies&amp;source=fim" target="_blank" rel="noopener noreferrer">Case Studies</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=bestpractices&amp;source=fim" target="_blank" rel="noopener noreferrer">Best practices</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=infographics&amp;source=fim" target="_blank" rel="noopener noreferrer">Infographics</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=compliance&amp;source=fim" target="_blank" rel="noopener noreferrer">Compliance</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=ebook&amp;source=fim" target="_blank" rel="noopener noreferrer">E-books</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=howto&amp;source=fim" target="_blank" rel="noopener noreferrer">How-tos</a></li><li><a href="https://www.manageengine.com/data-security/resources.html?tab=videos&amp;source=fim" target="_blank" rel="noopener noreferrer">Videos</a></li><li><a href="https://www.manageengine.com/data-security/get-quote.html?source=fim" target="_blank" rel="noopener noreferrer">Get quote</a></li><li><a href="https://www.manageengine.com/data-security/request-evaluation-license.html?source=fim" target="_blank" rel="noopener noreferrer">Extend trial license</a></li><li><a href="https://www.manageengine.com/data-security/demo-form.html?source=fim" target="_blank" rel="noopener noreferrer">Online demo</a></li><li><a href="https://www.manageengine.com/data-security/request-support.html?source=fim" target="_blank" rel="noopener noreferrer">Request support</a></li><li><a href="https://www.manageengine.com/data-security/pricing-details.html?source=fim" target="_blank" rel="noopener noreferrer">Pricing details</a></li><li><a href="https://www.manageengine.com/data-security/compare-editions.html?source=fim" target="_blank" rel="noopener noreferrer">Compare editions</a></li><li><a href="https://www.manageengine.com/data-security/license-upgrade.html?source=fim" target="_blank" rel="noopener noreferrer">License upgrade</a></li><li><a href="https://www.manageengine.com/products/ad-manager/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Active Directory Management &amp; Reporting</a></li><li><a href="https://www.manageengine.com/products/active-directory-audit/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Active Directory Auditing</a></li><li><a href="https://www.manageengine.com/products/self-service-password/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Identity security with MFA, SSO, and SSPR</a></li><li><a href="https://www.manageengine.com/products/exchange-reports/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Exchange Server Auditing &amp; Reporting</a></li><li><a href="https://www.manageengine.com/products/eventlog/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Real-time Log Analysis and Reporting Solution</a></li><li><a href="https://www.manageengine.com/ad-recovery-manager/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Active Directory Backup &amp; Recovery Tool</a></li><li><a href="https://www.manageengine.com/sharepoint-management-reporting/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">SharePoint Management and Auditing Solution</a></li><li><a href="https://www.manageengine.com/log-management/index.html?src=dsp-related-products" target="_blank" rel="noopener noreferrer">Comprehensive threat mitigation &amp; SIEM (Log360)</a></li><li><a href="https://www.manageengine.com/microsoft-365-management-reporting/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Management &amp; Reporting Tool</a></li><li><a href="https://www.manageengine.com/active-directory-360/index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Integrated Identity &amp; Access Management (AD360)</a></li><li><a href="https://www.manageengine.com/microsoft-365-security-protection/?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Microsoft 365 Security and Protection Tool</a></li><li><a href="https://www.manageengine.com/products/free-windows-active-directory-tools/free-active-directory-tools-index.html?source=dsp-related-products" target="_blank" rel="noopener noreferrer">Active Directory FREE Tools</a></li><li><a href="https://www.manageengine.com/data-security/download.html?btmMenu" target="_blank" rel="noopener noreferrer">Download</a></li><li><a href="https://demo.datasecurityplus.com/?btmMenu" target="_blank" rel="noopener noreferrer">Live Demo</a></li><li><a href="https://www.manageengine.com/data-security/download.html?btmMenu" target="_blank" rel="noopener noreferrer">Free Edition</a></li><li><a href="https://www.manageengine.com/data-security/get-quote.html?btmMenu" target="_blank" rel="noopener noreferrer">Get Quote</a></li><li><a href="https://store.manageengine.com/data-security/?btmMenu" target="_blank" rel="noopener noreferrer">Buy Now</a></li></ul>
+<h2><span class="hlvl">H2</span>Real-time Windows Data visibility and security solution and analysis software</h2>
+<p><a href="https://www.manageengine.com/data-security/email-download-link.html" target="_blank" rel="noopener noreferrer">Email Download Link</a></p></article>
+<a class="totop" href="#top">&uarr; Back to top</a>
+</section>
+<p class="foot">Generated by URL Scraper</p></div>
+<script>
+(function(){
+  var body = document.body;
+  // invert=true -> the class is applied when the box is UNchecked.
+  function bind(id, cls, invert){
+    var el = document.getElementById(id);
+    if(!el) return;
+    function apply(){ body.classList.toggle(cls, invert ? !el.checked : el.checked); }
+    apply();
+    el.addEventListener('change', apply);
+  }
+  bind('t-levels', 'show-levels', false);
+  bind('t-images', 'no-images', true);
+
+  // Flag images that fail to load so the caption still carries the alt text.
+  Array.prototype.forEach.call(document.images, function(img){
+    img.addEventListener('error', function(){
+      img.style.display = 'none';
+      var cap = img.parentNode.querySelector('figcaption');
+      if (cap) cap.classList.add('img-broken');
+    });
+  });
+})();
+</script>
+</body></html>
