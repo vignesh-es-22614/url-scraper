@@ -1122,6 +1122,10 @@ Selectively filter and monitor high-risk access types, such as file extension ch
 alt text: file-server-auditing-solution
 - JPG: https://www.manageengine.com/data-security/file-audit-lp/images/file-server-auditing-solution.jpg (100%x100%)
 
+1.Get the big picture: Use the one-stop operational dashboard for a quick overview of recent file and folder access types. Use custom filters to analyze and investigate any sudden changes in access trends.
+
+2.Warning signs to look out for: Selectively filter and monitor high-risk access types, such as file extension changes, renaming, deletions, permission changes, and file activities made during non-business hours.
+
 [H5] Stay on top of changes.
 
 Intentional or unintentional—track file deletions, moves, and permission changes. Reverse file name changes as required after comparing original and altered file names.
