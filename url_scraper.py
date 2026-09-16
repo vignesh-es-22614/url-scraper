@@ -13,12 +13,14 @@ Excel/CSV format:
     - Must have a column named 'URL' or 'url' (or the first column is used)
     - One URL per row
 """
+from __future__ import annotations
 
 import sys
 import os
 import time
 import argparse
 import re
+import html as _html
 import requests
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
@@ -58,13 +60,43 @@ def _sanitize_xml_text(value: str | None) -> str:
     return _INVALID_XML_RE.sub("", value)
 
 
+# Pasted URLs often arrive wrapped in a label, list marker or punctuation:
+# "page: https://x", "- https://x", "1. https://x", "<https://x>", "https://x,".
+_URL_LABEL_RE = re.compile(
+    r"^(?:[-*•>]+\s*|\d+[.)]\s*)*(?:(?:page|url|link|site|address)\s*[:=]\s*)?",
+    re.IGNORECASE)
+_EMBEDDED_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+_URL_TRIM_CHARS = "<>\"'`()[] \t"
+
+
+def _clean_url_input(raw: str) -> str:
+    """Pull the actual URL out of a pasted line."""
+    value = _sanitize_xml_text(raw).strip().strip(_URL_TRIM_CHARS)
+    if not value:
+        return ""
+
+    embedded = _EMBEDDED_URL_RE.search(value)
+    if embedded:
+        value = embedded.group(0)
+    else:
+        value = _URL_LABEL_RE.sub("", value, count=1).strip()
+        value = value.split()[0] if value.split() else ""
+
+    return value.strip(_URL_TRIM_CHARS).rstrip(",;.")
+
+
 def _url_candidates(url: str) -> list[str]:
-    url = _sanitize_xml_text(url).strip()
-    if not url:
+    cleaned = _clean_url_input(url)
+    if not cleaned:
         return []
-    if url.startswith(("http://", "https://")):
-        return [url]
-    return [f"https://{url}", f"http://{url}"]
+    if cleaned.startswith(("http://", "https://")):
+        return [cleaned]
+    # Bare host: must at least look like a domain before we prepend a scheme,
+    # otherwise "http://" + junk produces an unhelpful parse error downstream.
+    host = cleaned.split("/")[0]
+    if " " in cleaned or "." not in host or host.startswith(".") or host.endswith("."):
+        return []
+    return [f"https://{cleaned}", f"http://{cleaned}"]
 
 
 def _add_hyperlink(paragraph, text: str, url: str):
@@ -109,10 +141,153 @@ def _resolve_url(base_url: str, value: str) -> str:
     return _sanitize_xml_text(urljoin(base_url, value)).strip()
 
 
+# Lazy-loading markup keeps the real image in a data-* attribute and leaves a
+# tiny placeholder in src, so prefer the data-* sources before falling back.
+_IMG_SRC_ATTRS = ("data-src", "data-lazy-src", "data-original", "data-image", "src")
+
+
+def _best_img_src(img: Tag, base_url: str) -> str:
+    """Pick the highest-fidelity source for an <img>, resolved to an absolute URL."""
+    for attr in _IMG_SRC_ATTRS:
+        value = str(img.get(attr) or "").strip()
+        if value and not value.startswith("data:"):
+            return _resolve_url(base_url, value)
+
+    for attr in ("data-srcset", "srcset"):
+        raw = str(img.get(attr) or "").strip()
+        if raw:
+            candidates = [c.strip().split()[0] for c in raw.split(",") if c.strip()]
+            if candidates:
+                return _resolve_url(base_url, candidates[-1])
+
+    value = str(img.get("src") or "").strip()
+    return _resolve_url(base_url, value) if value else ""
+
+
 def _is_internal_link(base_url: str, href: str) -> bool:
     base_host = urlparse(base_url).netloc.lower()
     href_host = urlparse(href).netloc.lower()
     return bool(base_host) and href_host == base_host
+
+
+# ── Template / chrome stripping ─────────────────────────────────────────────
+
+_TMPL_TAGS = ["script", "style", "nav", "footer", "header",
+              "aside", "noscript", "iframe", "svg"]
+
+# Unmistakable chrome — removed even when it contains a heading.
+_CHROME_STRONG = ["cookie", "popup", "modal", "overlay", "advertisement",
+                  "breadcrumb", "social", "share", "sticky-", "floating"]
+
+# Usually chrome, but marketing pages routinely wrap the <h1> in a "banner" or
+# "promo" block, so these are only removed when they hold no heading.
+_CHROME_WEAK = ["sidebar", "side-bar", "widget", "banner", "promo",
+                "related", "recommended", "ads", "toc", "table-of-content"]
+
+_CHROME_IDS_STRONG = ["cookie", "popup", "modal", "breadcrumb"]
+_CHROME_IDS_WEAK = ["sidebar", "nav", "menu", "navigation", "banner",
+                    "toc", "header", "footer"]
+
+_CONTENT_ROOT_HINTS = ("content", "main", "main-content", "page-content")
+
+# Tags that yield a block of their own, so a container holding any of them must
+# be recursed into rather than flattened into a single text block.
+_BLOCK_LEVEL = [
+    "address", "article", "aside", "blockquote", "button", "dd", "details",
+    "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form",
+    "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "img", "li", "main",
+    "nav", "ol", "p", "picture", "pre", "section", "summary", "table",
+    "tbody", "td", "tfoot", "th", "thead", "tr", "ul", "video",
+]
+
+
+def _is_text_node(node) -> bool:
+    """True for real text only.
+
+    Comment/CData/Doctype all subclass NavigableString, so an isinstance check
+    would pull HTML comments such as <!-- END --> into the extracted text.
+    """
+    return type(node) is NavigableString
+
+
+def _attr_matches(value: str, pattern: str) -> bool:
+    """Token-aware attribute match.
+
+    Plain substring matching was too blunt: 'ads' matched 'downloads' and
+    'content' matched 'tab-content-container'. Single-word patterns must match
+    a whole token; hyphenated patterns still match as substrings.
+    """
+    value = (value or "").lower()
+    if "-" in pattern:
+        return pattern in value
+    return pattern in re.split(r"[^a-z0-9]+", value)
+
+
+def _el_attr_text(el: Tag, attr: str) -> str:
+    value = el.get(attr)
+    if isinstance(value, list):
+        return " ".join(value)
+    return str(value or "")
+
+
+def _strip_template_chrome(soup: BeautifulSoup) -> None:
+    """Remove navigation/cookie/ad furniture, keeping anything that carries a heading."""
+    for t in soup(_TMPL_TAGS):
+        t.decompose()
+
+    for el in soup.find_all(True):
+        try:
+            if el.decomposed or el.name in ("html", "body"):
+                continue
+            cls = _el_attr_text(el, "class")
+            eid = _el_attr_text(el, "id")
+        except AttributeError:      # parent was decomposed mid-iteration
+            continue
+
+        strong = (any(_attr_matches(cls, p) for p in _CHROME_STRONG)
+                  or any(_attr_matches(eid, p) for p in _CHROME_IDS_STRONG))
+        weak = (any(_attr_matches(cls, p) for p in _CHROME_WEAK)
+                or any(_attr_matches(eid, p) for p in _CHROME_IDS_WEAK))
+
+        if not strong and not weak:
+            continue
+        if weak and not strong and el.find(["h1", "h2"]):
+            continue                # hero/banner block that holds the headline
+        el.decompose()
+
+
+def _pick_content_root(soup: BeautifulSoup) -> Tag:
+    """Pick the element holding the page's real content.
+
+    Candidates are scored by how much of the body text they actually contain;
+    a narrow widget such as <div class="tab-content-container"> no longer wins
+    just because its class happens to contain the word 'content'.
+    """
+    body = soup.find("body") or soup
+    body_len = len(body.get_text(" ", strip=True))
+    if not body_len:
+        return body
+
+    candidates: list[Tag] = []
+    candidates.extend(soup.find_all(["main", "article"]))
+    candidates.extend(soup.find_all(attrs={"role": "main"}))
+    for attr in ("id", "class"):
+        for el in soup.find_all(attrs={attr: True}):
+            value = _el_attr_text(el, attr)
+            if any(_attr_matches(value, p) for p in _CONTENT_ROOT_HINTS):
+                candidates.append(el)
+
+    best, best_len = None, 0
+    for el in candidates:
+        length = len(el.get_text(" ", strip=True))
+        if length > best_len:
+            best, best_len = el, length
+
+    # Only trust a candidate that holds the bulk of the page; otherwise the
+    # whole body is safer than silently dropping most of the content.
+    if best is not None and best_len >= body_len * 0.6:
+        return best
+    return body
 
 
 def _walk_content(elem: Tag, base_url: str) -> list[dict[str, object]]:
@@ -129,7 +304,7 @@ def _walk_content(elem: Tag, base_url: str) -> list[dict[str, object]]:
     def _inline(node: Tag) -> str:
         parts: list[str] = []
         for child in node.children:
-            if isinstance(child, NavigableString):
+            if _is_text_node(child):
                 txt = " ".join(_sanitize_xml_text(str(child)).split())
                 if txt:
                     parts.append(txt)
@@ -312,12 +487,26 @@ def _walk_content(elem: Tag, base_url: str) -> list[dict[str, object]]:
             # Non-FAQ button — skip
             return
 
+        # Generic container. When it holds no block-level descendant it *is* a
+        # text block — e.g. <div class="tab-button"><span>Label</span></div>,
+        # whose text was previously dropped because it sits in no <p>/<li>/<h*>.
+        if node.find(_BLOCK_LEVEL) is None:
+            text = _inline(node)
+            if text and len(text) > 1:
+                blocks.append({"tag": tag, "type": "paragraph", "text": text})
+            return
+
         for child in node.children:
-            if isinstance(child, Tag):
+            if _is_text_node(child):
+                # Loose text sitting in a wrapper alongside block children.
+                txt = " ".join(_sanitize_xml_text(str(child)).split())
+                if len(txt) > 1 and re.search(r"\w", txt):
+                    blocks.append({"tag": tag, "type": "paragraph", "text": txt})
+            elif isinstance(child, Tag):
                 walk(child)
 
     def _add_img_block(img: Tag) -> None:
-        src = _resolve_url(base_url, img.get("src", ""))
+        src = _best_img_src(img, base_url)
         alt = " ".join(_sanitize_xml_text(img.get("alt", "")).split())
         if not src and not alt:
             return
@@ -345,7 +534,7 @@ def _collect_images(soup: BeautifulSoup, base_url: str) -> list[dict[str, str]]:
     seen: set[tuple[str, str, str]] = set()
 
     for img in soup.find_all("img"):
-        src = _resolve_url(base_url, img.get("src", ""))
+        src = _best_img_src(img, base_url)
         alt = " ".join(_sanitize_xml_text(img.get("alt", "")).split())
         title = " ".join(_sanitize_xml_text(img.get("title", "")).split())
         if not src and not alt and not title:
@@ -950,14 +1139,25 @@ def scrape_url(url: str, timeout: int = None, max_text: int = None) -> tuple[str
     _timeout  = timeout  if timeout  is not None else REQUEST_TIMEOUT
     _max_text = max_text if max_text is not None else MAX_TEXT_LENGTH
     candidates = _url_candidates(url)
+    if not candidates:
+        return url, "", "", f"Not a valid URL: {url.strip()!r}", [], {}
     last_error = ""
 
     for candidate in candidates:
         try:
             resp = requests.get(candidate, headers=HEADERS, timeout=_timeout)
             resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
-            content_soup = BeautifulSoup(resp.text, "html.parser")
+
+            # Parse raw bytes, not resp.text: requests falls back to ISO-8859-1
+            # for text/html without a charset, which mangles UTF-8 punctuation
+            # into mojibake. BeautifulSoup sniffs <meta charset> / BOM instead.
+            declared_charset = None
+            ctype = resp.headers.get("Content-Type", "")
+            if "charset=" in ctype.lower():
+                declared_charset = ctype.lower().split("charset=", 1)[1].split(";")[0].strip() or None
+
+            soup = BeautifulSoup(resp.content, "html.parser", from_encoding=declared_charset)
+            content_soup = BeautifulSoup(resp.content, "html.parser", from_encoding=declared_charset)
 
             title_tag = soup.find("title")
             title = _sanitize_xml_text(title_tag.get_text(strip=True) if title_tag else "(No title)")
@@ -969,35 +1169,8 @@ def scrape_url(url: str, timeout: int = None, max_text: int = None) -> tuple[str
             breadcrumb = _collect_breadcrumb(soup, resp.url)
             cta_buttons = _collect_cta_buttons(soup, resp.url)
 
-            # ── Strip chrome / template areas ───────────────────────
-            _TMPL_TAGS = ["script", "style", "nav", "footer", "header",
-                          "aside", "noscript", "iframe", "svg"]
-            _TMPL_CLS  = ["sidebar", "side-bar", "widget", "banner",
-                          "popup", "modal", "cookie", "promo", "overlay",
-                          "breadcrumb", "related", "social", "share",
-                          "advertisement", "ads", "recommended", "toc",
-                          "table-of-content", "floating", "sticky-"]
-            _TMPL_IDS  = ["sidebar", "nav", "menu", "navigation",
-                          "breadcrumb", "cookie", "banner", "popup",
-                          "modal", "footer", "header", "toc"]
-
-            for t in content_soup(_TMPL_TAGS):
-                t.decompose()
-            for pattern in _TMPL_CLS:
-                for el in content_soup.find_all(
-                        class_=lambda c, p=pattern:
-                        c and any(p in v.lower() for v in (c if isinstance(c, list) else [c]))):
-                    el.decompose()
-            for pattern in _TMPL_IDS:
-                for el in content_soup.find_all(
-                        id=lambda i, p=pattern: i and p in i.lower()):
-                    el.decompose()
-
-            main = (content_soup.find("main") or content_soup.find("article") or
-                    content_soup.find(id=lambda i: i and "content" in i.lower()) or
-                    content_soup.find(class_=lambda c: c and "content" in
-                        " ".join(c if isinstance(c, list) else [c]).lower()) or
-                    content_soup.find("body") or content_soup)
+            _strip_template_chrome(content_soup)
+            main = _pick_content_root(content_soup)
 
             blocks = _walk_content(main, resp.url)
 
@@ -1254,11 +1427,431 @@ def build_docx(results: list[dict], output_path: str) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+# ── Readable HTML builder ────────────────────────────────────────────────────
+#
+# Renders the same structured blocks the .md / .docx exports use, but as a
+# self-contained HTML page meant to be *read* in a browser: real headings,
+# real links, real images, real tables — no external CSS/JS/fonts.
+
+# Inline markers produced by _walk_content: "[label] (https://…)" and `code`.
+_MD_LINK_RE = re.compile(r"\[([^\[\]]+?)\]\s*\((https?://[^\s()]+)\)")
+_MD_CODE_RE = re.compile(r"`([^`\n]+)`")
+
+_READABLE_CSS = """
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#1a1d21; --muted:#6b7280; --line:#e3e6ea;
+  --blue:#1b4f8a; --blue-lt:#2f6fb8; --green:#166534; --amber:#92400e;
+  --amber-bg:#fef3c7; --code-bg:#f2f4f7; --mark:#eef4fb;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#14171a; --card:#1c2025; --ink:#e7e9ec; --muted:#9aa3ad; --line:#2c323a;
+    --blue:#7fb2e8; --blue-lt:#9cc6f2; --green:#6ee7a8; --amber:#fbbf24;
+    --amber-bg:#3b2f12; --code-bg:#22272e; --mark:#1f2732;
+  }
+}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--blue-lt)}
+a:hover{color:var(--blue)}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px 80px}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:10;background:var(--card);
+  border-bottom:1px solid var(--line);padding:12px 20px}
+.topbar .inner{max-width:860px;margin:0 auto;display:flex;align-items:center;
+  gap:14px;flex-wrap:wrap}
+.topbar h1{margin:0;font-size:1rem;font-weight:700}
+.topbar .sub{color:var(--muted);font-size:.78rem}
+.tools{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}
+.tools label{font-size:.78rem;color:var(--muted);cursor:pointer;user-select:none;
+  display:inline-flex;align-items:center;gap:5px}
+
+/* table of contents */
+.toc{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:22px 0}
+.toc h2{margin:0 0 8px;font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted)}
+.toc ol{margin:0;padding-left:20px}
+.toc li{margin:4px 0;font-size:.9rem}
+
+/* page section */
+.page{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  margin:22px 0;overflow:hidden}
+.pg-head{padding:20px 24px;border-bottom:1px solid var(--line);background:var(--mark)}
+.pg-num{font-size:.72rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.pg-head h2{margin:4px 0 6px;font-size:1.3rem;line-height:1.35}
+.src{font-size:.83rem;word-break:break-all}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:.72rem;padding:3px 9px;border-radius:20px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.crumb{margin-top:10px;font-size:.78rem;color:var(--muted)}
+.desc{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+
+/* metadata drawer */
+.meta{border-bottom:1px solid var(--line)}
+.meta>summary{cursor:pointer;padding:11px 24px;font-size:.82rem;
+  font-weight:600;color:var(--muted)}
+.meta>summary:hover{color:var(--ink)}
+.meta .body{padding:4px 24px 18px}
+.meta table{width:100%;border-collapse:collapse;font-size:.8rem}
+.meta td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.meta td:first-child{width:180px;color:var(--muted);font-weight:600}
+
+/* article content */
+.content{padding:10px 24px 28px}
+.content h1,.content h2,.content h3,
+.content h4,.content h5,.content h6{line-height:1.3;margin:1.5em 0 .5em}
+.content h1{font-size:1.6rem}
+.content h2{font-size:1.32rem}
+.content h3{font-size:1.12rem}
+.content h4,.content h5,.content h6{font-size:1rem}
+.content p{margin:0 0 1em}
+.content ul{margin:0 0 1em;padding-left:24px}
+.content li{margin:.3em 0}
+.content blockquote{margin:0 0 1em;padding:2px 0 2px 16px;
+  border-left:3px solid var(--line);color:var(--muted)}
+.content code{background:var(--code-bg);padding:1px 5px;border-radius:4px;
+  font-size:.88em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.content pre{background:var(--code-bg);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;overflow-x:auto;margin:0 0 1em}
+.content pre code{background:none;padding:0;font-size:.84rem;line-height:1.55}
+.hlvl{display:none;font-size:.6em;font-weight:700;vertical-align:middle;
+  margin-right:8px;padding:2px 6px;border-radius:4px;
+  background:var(--mark);border:1px solid var(--line);color:var(--muted)}
+body.show-levels .hlvl{display:inline-block}
+.faq-q{font-weight:700;margin:1.2em 0 .4em!important}
+.faq-q::before{content:"Q: ";color:var(--muted)}
+.cta{display:inline-block;margin:0 8px 1em 0;padding:8px 16px;border-radius:7px;
+  background:var(--blue);color:#fff!important;font-size:.85rem;font-weight:600;
+  text-decoration:none}
+.cta:hover{background:var(--blue-lt);color:#fff!important}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin:0 0 1.2em}
+.content table{border-collapse:collapse;width:100%;font-size:.86rem}
+.content th,.content td{border:1px solid var(--line);padding:7px 10px;
+  text-align:left;vertical-align:top}
+.content th{background:var(--mark);font-weight:700}
+
+/* images */
+figure{margin:0 0 1.4em}
+figure img{max-width:100%;height:auto;display:block;border-radius:8px;
+  border:1px solid var(--line);background:var(--mark)}
+figcaption{font-size:.76rem;color:var(--muted);margin-top:6px;word-break:break-word}
+figcaption .altline{color:var(--ink)}
+body.no-images figure img{display:none}
+.img-broken{font-size:.78rem;color:var(--amber);background:var(--amber-bg);
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+
+/* errors + footer */
+.err{margin:0;padding:20px 24px;color:var(--amber);background:var(--amber-bg);
+  font-size:.9rem}
+.totop{display:block;padding:10px 24px;font-size:.75rem;color:var(--muted);
+  border-top:1px solid var(--line);text-decoration:none}
+.totop:hover{color:var(--blue)}
+.foot{text-align:center;color:var(--muted);font-size:.75rem;margin-top:26px}
+
+@media print{
+  .topbar,.tools,.totop,.toc{display:none}
+  body{background:#fff}
+  .page{border:none;margin:0 0 24px;page-break-inside:avoid}
+  .meta[open]>summary{display:none}
+}
+"""
+
+_READABLE_JS = """
+(function(){
+  var body = document.body;
+  // invert=true -> the class is applied when the box is UNchecked.
+  function bind(id, cls, invert){
+    var el = document.getElementById(id);
+    if(!el) return;
+    function apply(){ body.classList.toggle(cls, invert ? !el.checked : el.checked); }
+    apply();
+    el.addEventListener('change', apply);
+  }
+  bind('t-levels', 'show-levels', false);
+  bind('t-images', 'no-images', true);
+
+  // Flag images that fail to load so the caption still carries the alt text.
+  Array.prototype.forEach.call(document.images, function(img){
+    img.addEventListener('error', function(){
+      img.style.display = 'none';
+      var cap = img.parentNode.querySelector('figcaption');
+      if (cap) cap.classList.add('img-broken');
+    });
+  });
+})();
+"""
+
+
+def _esc(value) -> str:
+    """Sanitize then HTML-escape any scraped value."""
+    return _html.escape(_sanitize_xml_text(str(value if value is not None else "")))
+
+
+def _rich(text: str) -> str:
+    """Escape text, then turn the inline `[label] (url)` and `code` markers
+    produced by _walk_content back into real <a> and <code> elements."""
+    out = _esc(text)
+    out = _MD_LINK_RE.sub(
+        lambda m: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>'
+                  % (m.group(2), m.group(1)),
+        out)
+    out = _MD_CODE_RE.sub(lambda m: "<code>%s</code>" % m.group(1), out)
+    return out
+
+
+def _render_blocks_html(blocks: list) -> str:
+    """Turn structured content blocks into readable article HTML."""
+    parts: list[str] = []
+    pending_list: list[str] = []
+    seen_img_srcs: set[str] = set()
+
+    def flush_list() -> None:
+        if pending_list:
+            parts.append("<ul>" + "".join("<li>%s</li>" % i for i in pending_list) + "</ul>")
+            pending_list.clear()
+
+    for block in blocks if isinstance(blocks, list) else []:
+        if not isinstance(block, dict):
+            continue
+        btype = block.get("type", "")
+        tag = str(block.get("tag", "")).lower()
+        text = str(block.get("text", "")).strip()
+
+        if btype == "list_item":
+            if text:
+                pending_list.append(_rich(text))
+            continue
+
+        flush_list()
+
+        if btype == "heading":
+            level = int(tag[1]) if len(tag) == 2 and tag[1].isdigit() else 2
+            if text:
+                parts.append('<h%d><span class="hlvl">H%d</span>%s</h%d>'
+                             % (level, level, _rich(text), level))
+
+        elif btype == "faq_question":
+            if text:
+                parts.append('<p class="faq-q">%s</p>' % _rich(text))
+
+        elif btype == "paragraph":
+            if not text:
+                continue
+            if text.startswith(">"):
+                parts.append("<blockquote>%s</blockquote>" % _rich(text.lstrip("> ").strip()))
+            else:
+                parts.append("<p>%s</p>" % _rich(text))
+
+        elif btype == "image":
+            src = _sanitize_xml_text(str(block.get("src", ""))).strip()
+            alt = _sanitize_xml_text(str(block.get("alt", ""))).strip()
+            img_title = _sanitize_xml_text(str(block.get("title", ""))).strip()
+            width = _sanitize_xml_text(str(block.get("width", ""))).strip()
+            height = _sanitize_xml_text(str(block.get("height", ""))).strip()
+            if src and src in seen_img_srcs:
+                continue
+            if src:
+                seen_img_srcs.add(src)
+            cap = ['<span class="altline">alt: %s</span>' % (_esc(alt) if alt else "<em>(missing)</em>")]
+            if img_title:
+                cap.append("title: %s" % _esc(img_title))
+            if width and height:
+                cap.append("%s&times;%s" % (_esc(width), _esc(height)))
+            if src:
+                cap.append('%s &middot; <a href="%s" target="_blank" rel="noopener noreferrer">source</a>'
+                           % (_esc(_image_variant_summary(src)), _esc(src)))
+            img_html = ('<img src="%s" alt="%s" loading="lazy">' % (_esc(src), _esc(alt))
+                        if src else "")
+            parts.append("<figure>%s<figcaption>%s</figcaption></figure>"
+                         % (img_html, " &nbsp;&middot;&nbsp; ".join(cap)))
+
+        elif btype == "table":
+            rows = block.get("rows") or []
+            if not rows:
+                continue
+            max_cols = max(len(r) for r in rows)
+            norm = [list(r) + [""] * (max_cols - len(r)) for r in rows]
+            head = "".join("<th>%s</th>" % _rich(str(c)) for c in norm[0])
+            body = "".join(
+                "<tr>%s</tr>" % "".join("<td>%s</td>" % _rich(str(c)) for c in row)
+                for row in norm[1:]
+            )
+            parts.append('<div class="tbl-wrap"><table><thead><tr>%s</tr></thead>'
+                         "<tbody>%s</tbody></table></div>" % (head, body))
+
+        elif btype == "code":
+            code = str(block.get("text", "")).rstrip()
+            if code.strip():
+                lang = _esc(block.get("language", ""))
+                cls = ' class="lang-%s"' % lang if lang else ""
+                parts.append("<pre><code%s>%s</code></pre>" % (cls, _esc(code)))
+
+        elif btype == "cta":
+            href = _sanitize_xml_text(str(block.get("href", ""))).strip()
+            if text and href:
+                parts.append('<a class="cta" href="%s" target="_blank" rel="noopener noreferrer">%s</a>'
+                             % (_esc(href), _esc(text)))
+
+    flush_list()
+    return "\n".join(parts) if parts else "<p><em>No readable content was extracted.</em></p>"
+
+
+def _render_result_html(index: int, result: dict) -> str:
+    url = _sanitize_xml_text(str(result.get("url", "")))
+    title = _sanitize_xml_text(str(result.get("title", ""))) or "(No title)"
+    error = _sanitize_xml_text(str(result.get("error", "")))
+    details = result.get("details") if isinstance(result.get("details"), dict) else {}
+
+    head = ['<section class="page" id="p%d">' % index,
+            '<div class="pg-head">',
+            '<div class="pg-num">URL %d</div>' % index,
+            "<h2>%s</h2>" % _esc(title)]
+    if url:
+        head.append('<a class="src" href="%s" target="_blank" rel="noopener noreferrer">%s</a>'
+                    % (_esc(url), _esc(url)))
+
+    if error:
+        head.append("</div>")
+        head.append('<p class="err">Could not scrape: %s</p>' % _esc(error))
+        head.append("</section>")
+        return "\n".join(head)
+
+    metadata = details.get("metadata") if isinstance(details.get("metadata"), dict) else {}
+    blocks = details.get("content_blocks") or result.get("content_blocks") or []
+    words = len(str(result.get("text", "")).split())
+
+    chips: list[str] = []
+    if details.get("domain"):
+        chips.append(str(details["domain"]))
+    if details.get("status_code"):
+        chips.append("HTTP %s" % details["status_code"])
+    if metadata.get("language"):
+        chips.append("Lang: %s" % metadata["language"])
+    if words:
+        chips.append(f"{words:,} words")
+    if details.get("total_images"):
+        chips.append("%s images" % details["total_images"])
+    if details.get("total_links"):
+        chips.append("%s links (%s int / %s ext)"
+                     % (details["total_links"], details.get("internal_links", 0),
+                        details.get("external_links", 0)))
+    chip_html = "".join('<span class="chip">%s</span>' % _esc(c) for c in chips)
+    if chip_html:
+        head.append('<div class="chips">%s</div>' % chip_html)
+
+    breadcrumb = details.get("breadcrumb") if isinstance(details.get("breadcrumb"), list) else []
+    crumbs = []
+    for c in breadcrumb:
+        if not isinstance(c, dict):
+            continue
+        label = _esc(c.get("text", "")) or "Link"
+        href = _sanitize_xml_text(str(c.get("href", ""))).strip()
+        crumbs.append('<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>'
+                      % (_esc(href), label) if href else label)
+    if crumbs:
+        head.append('<div class="crumb">%s</div>' % " &rsaquo; ".join(crumbs))
+
+    description = _sanitize_xml_text(str(metadata.get("description", ""))).strip()
+    if description:
+        head.append('<p class="desc">%s</p>' % _esc(description))
+    head.append("</div>")
+
+    # Metadata drawer
+    rows = [("Final URL", details.get("final_url", url)),
+            ("Domain", details.get("domain", "")),
+            ("Status", details.get("status_code", "")),
+            ("Language", metadata.get("language", "")),
+            ("Canonical", metadata.get("canonical", "")),
+            ("Description", description),
+            ("Keywords", metadata.get("keywords", "")),
+            ("Author", metadata.get("author", ""))]
+    meta_tags = metadata.get("meta_tags") if isinstance(metadata.get("meta_tags"), list) else []
+    for item in meta_tags[:80]:
+        if isinstance(item, dict) and item.get("key") and item.get("value"):
+            rows.append((item.get("key"), item.get("value")))
+    row_html = "".join("<tr><td>%s</td><td>%s</td></tr>"
+                       % (_esc(k), _esc(v) if str(v or "").strip() else "N/A")
+                       for k, v in rows)
+    head.append('<details class="meta"><summary>Metadata &amp; meta tags (%d)</summary>'
+                '<div class="body"><table><tbody>%s</tbody></table></div></details>'
+                % (len(rows), row_html))
+
+    head.append('<article class="content">%s</article>' % _render_blocks_html(blocks))
+    head.append('<a class="totop" href="#top">&uarr; Back to top</a>')
+    head.append("</section>")
+    return "\n".join(head)
+
+
+def build_readable_html(results: list[dict], doc_title: str = "Scraped Content") -> str:
+    """Build a self-contained, readable HTML page from scraped results."""
+    results = results or []
+    generated = datetime.now().strftime("%d %b %Y, %H:%M")
+    ok = sum(1 for r in results if not r.get("error"))
+    failed = len(results) - ok
+
+    toc = ""
+    if len(results) > 1:
+        items = "".join(
+            '<li><a href="#p%d">%s</a></li>'
+            % (i, _esc(r.get("title") or r.get("url") or "Untitled"))
+            for i, r in enumerate(results, 1))
+        toc = '<nav class="toc"><h2>Pages in this report</h2><ol>%s</ol></nav>' % items
+
+    sections = "\n".join(_render_result_html(i, r) for i, r in enumerate(results, 1))
+    summary = "%d page%s &middot; %d scraped%s &middot; %s" % (
+        len(results), "" if len(results) == 1 else "s", ok,
+        ", %d failed" % failed if failed else "", _esc(generated))
+
+    return (
+        "<!DOCTYPE html>\n"
+        '<html lang="en"><head>\n'
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+        '<meta name="robots" content="noindex">\n'
+        "<title>%s</title>\n<style>%s</style>\n</head>\n"
+        '<body id="top">\n'
+        '<div class="topbar"><div class="inner">'
+        "<div><h1>%s</h1><div class=\"sub\">%s</div></div>"
+        '<div class="tools">'
+        '<label><input type="checkbox" id="t-images" checked> Images</label>'
+        '<label><input type="checkbox" id="t-levels"> Heading tags</label>'
+        "</div></div></div>\n"
+        '<div class="wrap">%s\n%s\n'
+        '<p class="foot">Generated by URL Scraper</p></div>\n'
+        "<script>%s</script>\n</body></html>\n"
+        % (_esc(doc_title), _READABLE_CSS, _esc(doc_title), summary,
+           toc, sections, _READABLE_JS)
+    )
+
+
+def build_readable_html_file(results: list[dict], output_path: str,
+                             doc_title: str = "Scraped Content") -> None:
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(build_readable_html(results, doc_title))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Scrape URLs and save to Word doc.")
     parser.add_argument("input", help="Excel (.xlsx) or CSV file with URLs")
     parser.add_argument("-o", "--output", default="scraped_content.docx",
                         help="Output .docx filename (default: scraped_content.docx)")
+    parser.add_argument("--html", nargs="?", const="scraped_content.html", default=None,
+                        metavar="PATH",
+                        help="Also write a readable, self-contained HTML page "
+                             "(default: scraped_content.html)")
+    parser.add_argument("--md", nargs="?", const="scraped_content.md", default=None,
+                        metavar="PATH",
+                        help="Also write the SEO markdown report "
+                             "(default: scraped_content.md)")
+    parser.add_argument("--no-docx", action="store_true",
+                        help="Skip the Word output (use with --html / --md)")
     args = parser.parse_args()
 
     if not os.path.exists(args.input):
@@ -1297,9 +1890,19 @@ def main():
         if i < len(urls):
             time.sleep(DELAY_BETWEEN_REQUESTS)
 
-    print(f"\n💾 Saving to: {args.output}")
-    build_docx(results, args.output)
-    print(f"✅ Done! File saved: {args.output}")
+    if not args.no_docx:
+        print(f"\n💾 Saving to: {args.output}")
+        build_docx(results, args.output)
+        print(f"✅ Done! File saved: {args.output}")
+
+    if args.md:
+        with open(args.md, "w", encoding="utf-8") as f:
+            f.write(build_seo_text_report(results))
+        print(f"✅ Markdown saved: {args.md}")
+
+    if args.html:
+        build_readable_html_file(results, args.html)
+        print(f"✅ Readable HTML saved: {args.html}  (open it in a browser)")
 
 
 if __name__ == "__main__":

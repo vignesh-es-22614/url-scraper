@@ -47,6 +47,8 @@
     .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:var(--blue-lt)}
     .btn-primary:disabled{background:#9db3cc;cursor:not-allowed;transform:none}
     .btn-success{background:var(--green);color:#fff}.btn-success:hover{background:#15803d}
+    .btn-outline{background:#fff;color:var(--blue);border:1.5px solid var(--border)}
+    .btn-outline:hover{border-color:var(--blue-lt);background:#f7fafd}
     .btn-row{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
     /* progress */
     #progress-section{display:none}
@@ -197,6 +199,18 @@
     <h3>Scraping Complete!</h3>
     <p id="dl-summary">All URLs processed.</p>
     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a id="view-link" href="#" target="_blank" rel="noopener" class="btn btn-primary" style="display:inline-flex;text-decoration:none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+        Read page
+      </a>
+      <a id="download-html-link" href="#" class="btn btn-outline" style="display:inline-flex;text-decoration:none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        </svg>
+        Download HTML
+      </a>
       <a id="download-link" href="#" class="btn btn-success" style="display:inline-flex;text-decoration:none;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -204,7 +218,7 @@
         </svg>
         Download SEO (.md)
       </a>
-      <a id="download-docx-link" href="#" class="btn btn-primary" style="display:inline-flex;text-decoration:none;">
+      <a id="download-docx-link" href="#" class="btn btn-outline" style="display:inline-flex;text-decoration:none;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
@@ -556,6 +570,8 @@ function showDownload(jobId, total, ok, err, words) {
     `${ok} of ${total} URL${total !== 1 ? 's' : ''} scraped successfully` +
     (err ? ` \u00B7 ${err} failed` : '') +
     ` \u00B7 ${words.toLocaleString()} words total.`;
+  document.getElementById('view-link').href = '/view/' + jobId;
+  document.getElementById('download-html-link').href = '/download-html/' + jobId;
   document.getElementById('download-link').href = '/download/' + jobId;
   document.getElementById('download-docx-link').href = '/download-docx/' + jobId;
   resetBtn.style.display = '';
