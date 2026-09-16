@@ -21,7 +21,9 @@ on:
     - cron: "0 5 * * 1"
 
 permissions:
-  contents: write
+  contents: write     # commit the rebuilt docs/
+  pages: write        # enable and deploy Pages
+  id-token: write     # required by actions/deploy-pages
 
 concurrency:
   group: publish
@@ -30,6 +32,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -58,3 +63,18 @@ jobs:
             git commit -m "Refresh scraped content"
             git push
           fi
+
+      # enablement:true turns Pages on for the repo, so no manual setup is needed.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
