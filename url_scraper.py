@@ -425,6 +425,16 @@ def _strip_template_chrome(soup: BeautifulSoup) -> None:
         el.decompose()
 
 
+def _contains(node: Tag, el: Tag) -> bool:
+    """True when el sits inside node (cheaper than scanning descendants)."""
+    cur = el
+    while cur is not None:
+        if cur is node:
+            return True
+        cur = cur.parent
+    return False
+
+
 def _pick_content_root(soup: BeautifulSoup) -> Tag:
     """Pick the element holding the page's real content.
 
@@ -454,9 +464,20 @@ def _pick_content_root(soup: BeautifulSoup) -> Tag:
 
     # Only trust a candidate that holds the bulk of the page; otherwise the
     # whole body is safer than silently dropping most of the content.
-    if best is not None and best_len >= body_len * 0.6:
-        return best
-    return body
+    if best is None or best_len < body_len * 0.6:
+        return body
+
+    # A root that excludes the page's <h1> is the wrong root: templates often
+    # put the headline in a hero block above the content div. Climb until the
+    # root holds it rather than reporting the page as having no H1.
+    h1 = soup.find("h1")
+    if h1 is not None and not _contains(best, h1):
+        anc = best
+        while anc is not None and anc is not body and not _contains(anc, h1):
+            anc = anc.parent
+        return anc if anc is not None else body
+
+    return best
 
 
 def _walk_content(elem: Tag, base_url: str) -> list[dict[str, object]]:
