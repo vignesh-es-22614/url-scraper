@@ -894,26 +894,14 @@ def _format_url_section(index: int, result: dict) -> str:
         ("Language", metadata.get("language", "")),
         ("Canonical", metadata.get("canonical", "")),
         ("Description", metadata.get("description", "")),
-        ("Keywords", metadata.get("keywords", "")),
-        ("Author", metadata.get("author", "")),
     ]
+    # Keywords, Author and the full meta tag list are deliberately omitted:
+    # they are boilerplate, repeat on every page, and dominate the report size
+    # on large crawls. The raw values stay in details["metadata"] for any
+    # caller that wants them.
     for key, value in fields:
         clean = _sanitize_xml_text(str(value or "")).strip()
         lines.append(f"**{key}:** {clean if clean else 'N/A'}")
-
-    lines.append("")
-    lines.append("**Meta Tags**")
-    meta_tags = metadata.get("meta_tags") if isinstance(metadata, dict) else []
-    if isinstance(meta_tags, list) and meta_tags:
-        for item in meta_tags[:80]:
-            if not isinstance(item, dict):
-                continue
-            key = _sanitize_xml_text(str(item.get("key", ""))).strip()
-            val = _sanitize_xml_text(str(item.get("value", ""))).strip()
-            if key and val:
-                lines.append(f"- {key}: {val}")
-    else:
-        lines.append("- N/A")
 
     breadcrumb = details.get("breadcrumb") if isinstance(details, dict) else []
     breadcrumb_labels: list[str] = []
@@ -1108,22 +1096,11 @@ def build_seo_docx(results: list[dict], output_path: str) -> None:
             ("Language",    metadata.get("language", "")),
             ("Canonical",   metadata.get("canonical", "")),
             ("Description", metadata.get("description", "")),
-            ("Keywords",    metadata.get("keywords", "")),
-            ("Author",      metadata.get("author", "")),
         ]:
             clean = _sanitize_xml_text(str(value or "")).strip()
             if not clean:
                 continue
             _bold_kv(doc.add_paragraph(), key, clean)
-
-        meta_tags = metadata.get("meta_tags") or []
-        if meta_tags:
-            doc.add_paragraph().add_run("Meta Tags").bold = True
-            for item in meta_tags[:80]:
-                mk = _sanitize_xml_text(str(item.get("key", ""))).strip()
-                mv = _sanitize_xml_text(str(item.get("value", ""))).strip()
-                if mk and mv:
-                    doc.add_paragraph(f"- {mk}: {mv}")
 
         # ── Breadcrumb ────────────────────────────────────────────────
         breadcrumb = details.get("breadcrumb") or []
@@ -1493,8 +1470,6 @@ def build_docx(results: list[dict], output_path: str) -> None:
                     ("Language", metadata.get("language", "")),
                     ("Canonical", metadata.get("canonical", "")),
                     ("Description", metadata.get("description", "")),
-                    ("Keywords", metadata.get("keywords", "")),
-                    ("Author", metadata.get("author", "")),
                 ]
                 for key, value in summary_fields:
                     clean = _sanitize_xml_text(str(value or "")).strip()
@@ -1503,18 +1478,6 @@ def build_docx(results: list[dict], output_path: str) -> None:
                     p = doc.add_paragraph()
                     p.add_run(f"{key}: ").bold = True
                     p.add_run(clean)
-
-                meta_tags = metadata.get("meta_tags") or []
-                if isinstance(meta_tags, list) and meta_tags:
-                    doc.add_paragraph().add_run("Meta Tags").bold = True
-                    for item in meta_tags[:80]:
-                        if not isinstance(item, dict):
-                            continue
-                        m_key = _sanitize_xml_text(str(item.get("key", ""))).strip()
-                        m_val = _sanitize_xml_text(str(item.get("value", ""))).strip()
-                        if not m_key or not m_val:
-                            continue
-                        doc.add_paragraph(f"- {m_key}: {m_val}")
 
             images = details.get("images") if isinstance(details, dict) else None
             if isinstance(images, list) and images:
