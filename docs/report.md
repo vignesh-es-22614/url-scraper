@@ -10,33 +10,6 @@
 **Language:** en
 **Canonical:** https://www.manageengine.com/microsoft-365-management-reporting/
 **Description:** Centralize your Microsoft 365 administration and audits with M365 Manager Plus—manage users, licenses, and backups while automating tasks across Entra ID, Exchange, SharePoint, and Teams.
-**Keywords:** m365 reporting tools, Microsoft 365 reporting tool, Microsoft 365 user license report, exchange online reporting, Microsoft 365 license usage report, Microsoft 365 user logon report, Microsoft 365 report licensed users, Microsoft 365 report mailbox size, Microsoft 365 user last logon date, Microsoft 365 report active users, Microsoft 365 exchange reports, Microsoft 365 report, Microsoft 365 user report, Microsoft 365 gui tool, Microsoft 365 monitoring tool, Microsoft 365 lync report
-**Author:** ManageEngine, communications@manageengine.com
-
-**Meta Tags**
-- description: Centralize your Microsoft 365 administration and audits with M365 Manager Plus—manage users, licenses, and backups while automating tasks across Entra ID, Exchange, SharePoint, and Teams.
-- keywords: m365 reporting tools, Microsoft 365 reporting tool, Microsoft 365 user license report, exchange online reporting, Microsoft 365 license usage report, Microsoft 365 user logon report, Microsoft 365 report licensed users, Microsoft 365 report mailbox size, Microsoft 365 user last logon date, Microsoft 365 report active users, Microsoft 365 exchange reports, Microsoft 365 report, Microsoft 365 user report, Microsoft 365 gui tool, Microsoft 365 monitoring tool, Microsoft 365 lync report
-- og:title: Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus
-- og:description: Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus
-- og:type: website
-- og:url: https://www.manageengine.com/microsoft-365-management-reporting/
-- og:image: https://www.manageengine.com/microsoft-365-management-reporting/images/logo.png
-- og:site_name: ManageEngine M365 Manager Plus
-- twitter:card: summary_large_image
-- twitter:site: @ME_ADSolutions
-- twitter:title: Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus
-- twitter:description: Microsoft 365 management, reporting, and auditing - ManageEngine M365 Manager Plus
-- twitter:image:src: https://www.manageengine.com/microsoft-365-management-reporting/images/logo.png
-- twitter:domain: http://www.microsoft365managerplus.com/
-- viewport: width=device-width, initial-scale=1
-- X-UA-Compatible: IE=edge,chrome=1
-- author: ManageEngine, communications@manageengine.com
-- distribution: Global
-- HandheldFriendly: True
-- MobileOptimized: 320
-- apple-touch-fullscreen: yes
-- apple-mobile-web-app-capable: yes
-- msvalidate.01: 74B237908BBED1AFD1D175AA51EA562F
 
 **Breadcrumb:** [Home](https://www.manageengine.com/microsoft-365-management-reporting/)
 
@@ -417,33 +390,6 @@ Highlights Reporting Auditing Management Monitoring Related products
 **Language:** en
 **Canonical:** https://www.manageengine.com/data-security/
 **Description:** Locate, track, and protect your sensitive data from inside and outside threats using DataSecurity Plus
-**Keywords:** file audit, data security, data discovery, ntfs audit, file access analytics, file change monitoring, ransomware response, file integrity monitoring, permissions monitoring, storage analysis, datasecurity plus
-**Author:** ManageEngine, communications@manageengine.com
-
-**Meta Tags**
-- description: Locate, track, and protect your sensitive data from inside and outside threats using DataSecurity Plus
-- keywords: file audit, data security, data discovery, ntfs audit, file access analytics, file change monitoring, ransomware response, file integrity monitoring, permissions monitoring, storage analysis, datasecurity plus
-- og:title: Data visibility and security solution by ManageEngine DataSecurity Plus
-- og:description: Data visibility and security solution by ManageEngine DataSecurity Plus!
-- og:type: website
-- og:url: https://www.manageengine.com/data-security/
-- og:image: https://www.manageengine.com/data-security/images/logo.png
-- og:site_name: ManageEngine DataSecurity Plus
-- twitter:card: summary_large_image
-- twitter:site: @ME_ADSolutions
-- twitter:title: Data visibility and security solution by ManageEngine DataSecurity Plus
-- twitter:description: Data visibility and security solution by ManageEngine DataSecurity Plus!
-- twitter:image:src: https://www.manageengine.com/data-security/images/logo.png
-- twitter:domain: datasecurityplus.com
-- viewport: width=device-width, initial-scale=1
-- X-UA-Compatible: IE=edge,chrome=1
-- author: ManageEngine, communications@manageengine.com
-- distribution: Global
-- HandheldFriendly: True
-- MobileOptimized: 320
-- apple-touch-fullscreen: yes
-- apple-mobile-web-app-capable: yes
-- msvalidate.01: 74B237908BBED1AFD1D175AA51EA562F
 
 **Breadcrumb:** [Home](https://www.manageengine.com/data-security/)
 
@@ -777,32 +723,6 @@ Our team will be in touch with you shortly.
 **Language:** en
 **Canonical:** ???  canonical-link ???
 **Description:** ???  description ???
-**Keywords:** ???  keyword ???
-**Author:** ManageEngine, communications@manageengine.com
-
-**Meta Tags**
-- description: ???  description ???
-- keywords: ???  keyword ???
-- og:title: Data visibility and security solution by ManageEngine DataSecurityPlus
-- og:description: Data visibility and security solution by ManageEngine DataSecurityPlus!
-- og:type: website
-- og:url: https://www.manageengine.com/data-security/
-- og:image: https://www.manageengine.com/data-security/images/logo.png
-- og:site_name: ManageEngine DataSecurityPlus
-- twitter:card: summary_large_image
-- twitter:site: @ME_ADSolutions
-- twitter:title: Data visibility and security solution by ManageEngine DataSecurityPlus
-- twitter:description: Data visibility and security solution by ManageEngine DataSecurityPlus!
-- twitter:image:src: https://www.manageengine.com/data-security/images/logo.png
-- twitter:domain: datasecurityplus.com
-- viewport: width=device-width, initial-scale=1
-- X-UA-Compatible: IE=edge,chrome=1
-- author: ManageEngine, communications@manageengine.com
-- distribution: Global
-- HandheldFriendly: True
-- MobileOptimized: 320
-- apple-touch-fullscreen: yes
-- apple-mobile-web-app-capable: yes
 
 ---
 
@@ -1006,32 +926,6 @@ Data loss prevention software monitors how sensitive data is accessed, used, and
 **Language:** en
 **Canonical:** https://www.manageengine.com/data-security/file-audit/file-server-auditing.html
 **Description:** Track, audit, alert, and report on all file accesses, changes and permissions on your file server using DataSecurity Plus' real-time Windows file audit solution.
-**Keywords:** file server auditing, Audit File changes, web based File Server Audit, Real time File Audit, Real time Change Audit, file auditing software, File Audit, Real time File Server Change Reports, Security and Compliance Auditing, Windows File Server Audit, Real Time File Server Alerts, file changes auditor, audit file server infrastructure, Windows file server auditing
-**Author:** ManageEngine, communications@manageengine.com
-
-**Meta Tags**
-- description: Track, audit, alert, and report on all file accesses, changes and permissions on your file server using DataSecurity Plus' real-time Windows file audit solution.
-- keywords: file server auditing, Audit File changes, web based File Server Audit, Real time File Audit, Real time Change Audit, file auditing software, File Audit, Real time File Server Change Reports, Security and Compliance Auditing, Windows File Server Audit, Real Time File Server Alerts, file changes auditor, audit file server infrastructure, Windows file server auditing
-- og:title: Data visibility and security solution by ManageEngine DataSecurity Plus
-- og:description: Data visibility and security solution by ManageEngine DataSecurity Plus!
-- og:type: website
-- og:url: https://www.manageengine.com/data-security/
-- og:image: https://www.manageengine.com/data-security/images/logo.png
-- og:site_name: ManageEngine DataSecurity Plus
-- twitter:card: summary_large_image
-- twitter:site: @ME_ADSolutions
-- twitter:title: Data visibility and security solution by ManageEngine DataSecurity Plus
-- twitter:description: Data visibility and security solution by ManageEngine DataSecurity Plus!
-- twitter:image:src: https://www.manageengine.com/data-security/images/logo.png
-- twitter:domain: datasecurityplus.com
-- viewport: width=device-width, initial-scale=1
-- X-UA-Compatible: IE=edge,chrome=1
-- author: ManageEngine, communications@manageengine.com
-- distribution: Global
-- HandheldFriendly: True
-- MobileOptimized: 320
-- apple-touch-fullscreen: yes
-- apple-mobile-web-app-capable: yes
 
 **Breadcrumb:** [Home](https://www.manageengine.com/data-security/)
 
