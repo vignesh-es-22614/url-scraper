@@ -41,6 +41,10 @@ def allowed_file(filename: str) -> bool:
 
 
 def _artifact_path(job_id: str, ext: str) -> str:
+    # Recreate the directory every time: it lives under %TEMP%, and Windows
+    # disk cleanup deletes it out from under a long-running server, which then
+    # fails every download with ENOENT until restarted.
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
     safe_job = "".join(ch for ch in job_id if ch.isalnum() or ch in {"-", "_"})
     return os.path.join(ARTIFACTS_DIR, f"{safe_job}.{ext}")
 
@@ -246,8 +250,8 @@ def _run_job(job_id: str, urls: list[str], settings: dict):
     # Warm the artifacts so the buttons respond instantly. Cheapest first, so a
     # failure in the expensive Word export still leaves the others ready, and
     # the Word failure is kept separate from the rest.
-    for build, key in ((_build_markdown_artifact, "artifact_error"),
-                       (_build_html_artifact, "artifact_error"),
+    for build, key in ((_build_markdown_artifact, "md_error"),
+                       (_build_html_artifact, "html_error"),
                        (_build_docx_artifact, "docx_error")):
         try:
             build(job_id, final_results)
@@ -267,17 +271,18 @@ def _download_seo_response(job_id: str):
     if not job:
         return jsonify({"error": "Unknown job. The job may have expired or run on a different instance."}), 404
 
-    if job.get("artifact_error"):
-        return jsonify({"error": f"Could not prepare markdown output: {job['artifact_error']}"}), 500
-
     results = job.get("results") or []
     if not results:
         return jsonify({"error": "Output file not ready"}), 404
 
+    # Always retry the build: a stale error from an earlier attempt (or a temp
+    # directory that has since been cleaned) must not permanently disable the
+    # download when the results are still in memory.
     try:
         md_path = _build_markdown_artifact(job_id, results)
+        job.pop("md_error", None)
     except Exception as e:
-        job["artifact_error"] = str(e)
+        job["md_error"] = str(e)
         return jsonify({"error": f"Could not build markdown output: {e}"}), 500
 
     return send_file(md_path, as_attachment=True, download_name=out_name, mimetype="text/markdown")
@@ -350,18 +355,16 @@ def _readable_html_path(job_id: str) -> tuple[str | None, tuple]:
     if not job:
         return None, (jsonify({"error": "Unknown job. The job may have expired "
                                         "or run on a different instance."}), 404)
-    if job.get("artifact_error"):
-        return None, (jsonify({"error": f"Could not prepare readable page: "
-                                        f"{job['artifact_error']}"}), 500)
-
     results = job.get("results") or []
     if not results:
         return None, (jsonify({"error": "Output file not ready"}), 404)
 
     try:
-        return _build_html_artifact(job_id, results), ()
+        path = _build_html_artifact(job_id, results)
+        job.pop("html_error", None)
+        return path, ()
     except Exception as e:
-        job["artifact_error"] = str(e)
+        job["html_error"] = str(e)
         return None, (jsonify({"error": f"Could not build readable page: {e}"}), 500)
 
 
