@@ -44,6 +44,35 @@ HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     )
 }
+def _detect_proxies() -> dict | None:
+    """Proxy to route requests through, or None to let requests decide.
+
+    Corporate setups often run a local agent that proxies traffic and resolves
+    internal hostnames, configured through a PAC file. requests cannot read a
+    PAC file, and Windows reports ProxyEnable=0 in that setup, so requests goes
+    direct and internal hosts fail with getaddrinfo errors. Honour an explicit
+    setting first, then fall back to a local agent if one is actually
+    listening.
+    """
+    explicit = os.environ.get("SCRAPER_PROXY", "").strip()
+    if explicit:
+        return {"http": explicit, "https": explicit}
+    if os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY"):
+        return None                     # requests picks these up itself
+
+    import socket
+    for port in (3128, 8080):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.4):
+                url = f"http://127.0.0.1:{port}"
+                return {"http": url, "https": url}
+        except OSError:
+            continue
+    return None
+
+
+PROXIES = _detect_proxies()
+
 REQUEST_TIMEOUT = 15       # seconds (default)
 DELAY_BETWEEN_REQUESTS = 1 # seconds — be polite
 MAX_TEXT_LENGTH = 0      # characters per URL (0 = unlimited, default)
@@ -186,7 +215,7 @@ SITEMAP_COMMON_PATHS = ("/sitemap.xml", "/sitemap_index.xml",
 
 
 def _fetch_sitemap_bytes(url: str, timeout: int) -> bytes:
-    resp = requests.get(url, headers=HEADERS, timeout=timeout)
+    resp = requests.get(url, headers=HEADERS, timeout=timeout, proxies=PROXIES)
     resp.raise_for_status()
     data = resp.content
     # .xml.gz sitemaps, and servers that gzip without a Content-Encoding header.
@@ -263,7 +292,7 @@ def _sitemaps_from_robots(source: str, timeout: int) -> list[str]:
     parsed = urlparse(cleaned)
     try:
         resp = requests.get(f"{parsed.scheme}://{parsed.netloc}/robots.txt",
-                            headers=HEADERS, timeout=timeout)
+                            headers=HEADERS, timeout=timeout, proxies=PROXIES)
         resp.raise_for_status()
     except Exception:
         return []
@@ -1313,7 +1342,7 @@ def scrape_url(url: str, timeout: int = None, max_text: int = None) -> tuple[str
     for candidate in candidates:
         try:
             resp = requests.get(candidate, headers=HEADERS,
-                                timeout=_timeout, stream=True)
+                                timeout=_timeout, stream=True, proxies=PROXIES)
             resp.raise_for_status()
 
             ctype_header = resp.headers.get("Content-Type", "")
